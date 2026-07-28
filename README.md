@@ -1,13 +1,13 @@
-# French Learning Assistant
+# L'auxiliaire
 
 A Chrome extension for learning French while you browse. Translate on hover or select, hear it spoken, save words with their context sentence to a per-page workbook, view verb conjugations, and review with spaced repetition.
 
 ## Feature summary
 
 **Core translation**
-- Cursor-follow mode: word under cursor shown in a small floating box; click to translate
-- Hover mode: automatic translation after a short pause
-- Selection popup: highlight anything to get a translation, with play buttons for both languages (French always available)
+- Click any word to translate it — always on, no toggle needed
+- Hover mode (optional): automatic translation after a short pause, on top of click
+- Selection popup: highlight a phrase or sentence to translate it, with play buttons for both languages (French always available)
 - All translations run on-device via Chrome's built-in Translator API (Chrome 138+) — no account, no API key, no network round-trip
 
 **Vocabulary workbook**
@@ -77,18 +77,18 @@ The MVP ships with placeholder data. Run these conversions before building out P
    - Source XML lives in `scripts/verbiste-source/` (`conjugations-fr.xml`, `verbs-fr.xml`), a mirror of Pierre Sarrazin's Verbiste data maintained at https://github.com/bretttolbert/verbecc (GPL-2.0-or-later; original at https://perso.b2b2c.ca/~sarrazip/dev/verbiste.html).
    - Regenerate with `node scripts/build-verbiste.js` (7011 verbs, 146 conjugation templates) — writes sharded output to `data/verbs/<letter>.json` and `data/lemmas/<letter>.json`, not a single file, so a lookup only loads ~1/26th of the dataset instead of all of it.
 
-2. **Lexique.org lexicon** (Phase 2 — POS, gender, frequency)
-   - Download from http://www.lexique.org/
-   - Ask Claude Code: *"Convert Lexique.org CSV to a JSON dictionary keyed by surface form, filtered to top 30k words by frequency, containing lemma, POS, gender, number, and frequency rank"*
+2. **Lexique.org lexicon** (~30k words — POS, gender, number, frequency) — done
+   - Source TSV lives at `data/Lexique4/Lexique4.tsv` (download from http://www.lexique.org/, not checked in).
+   - Regenerate with `node scripts/build-lexicon.js` — writes sharded output to `data/lexicon/<letter>.json`, same scheme as the verb data above.
 
-3. **Cognate list** (Phase 2)
-   - Ask Claude Code: *"Generate a JSON Set of common English-French cognates from a public list"*
+3. **Cognate list** (~360 hand-picked entries) — done
+   - `data/cognates.json` is hand-curated, not generated — there's no reliable way to tell true cognates from false friends (`actuellement`/actually, `librairie`/library, ...) using frequency or POS data alone.
 
 ## Roadmap
 
 See `CLAUDE.md` for the detailed weekend-by-weekend build order and all technical decisions.
 
-- **Weekend 1**: Core MVP — translate, save with context, conjugation, cursor-follow, cache
+- **Weekend 1**: Core MVP — translate, save with context, conjugation, click/hover translate, cache
 - **Weekend 2**: Reading aids — color coding, frequency dimming, cognates, CEFR
 - **Weekend 3**: Retention — spaced repetition, sentence mining, gamification
 - **Weekend 4**: PDF support via PDF.js
@@ -103,21 +103,21 @@ background/
                             service worker, a Web Worker, can't provide)
   conjugation.js          — Verbiste lookup + lemmatization
   detect-lang.js          — FR/EN detection (context-sentence aware)
-  lexicon.js              — POS/gender/frequency lookup (Phase 2)
-  srs.js                  — Spaced repetition scheduler (Phase 3)
+  lexicon.js              — POS/gender/frequency lookup (shard-cache, mirrors conjugation.js)
+  srs.js                  — Leitner box→interval table (full review flow: Phase 3)
   cache.js                — Translation cache
 content/
-  content-script.js       — Selection, hover, cursor-follow, bubble
-  annotator.js            — Color coding, dimming, cognates (Phase 2)
+  content-script.js       — Selection, click/hover translate, bubble
+  annotator.js            — Color coding, dimming, cognate underlines, CEFR estimate
   context.js              — Sentence extraction from DOM
-  popup.css               — Floating bubble styles (.fla-* namespaced)
+  popup.css               — Floating bubble + annotation styles (.fla-* namespaced)
 popup/                    — Toolbar icon popup — settings, color pickers
 sidepanel/                — Vocab / Conjugation / Review / Progress tabs
 data/
   verbs/<letter>.json     — conjugation tables, sharded by infinitive's first letter
   lemmas/<letter>.json    — conjugated form -> infinitive, sharded by its first letter
-  lexicon.json            — Bundled POS + gender + frequency (Phase 2)
-  cognates.json           — English-French cognate list (Phase 2)
+  lexicon/<letter>.json   — surface form -> {lemma,pos,gender,number,freqRank}, same sharding
+  cognates.json           — hand-curated English-French cognate map
 lib/
   fuzzy-match.js          — Levenshtein for review + pronunciation
   normalize-url.js        — Canonicalizes URLs used as vocab keys

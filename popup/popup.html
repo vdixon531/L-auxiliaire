@@ -5,13 +5,10 @@
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
-    <h1>French Assistant</h1>
+    <h1>L'auxiliaire</h1>
 
     <section class="toggles">
-      <label class="row">
-        <span>Cursor-follow (click to translate)</span>
-        <input type="checkbox" id="cursorFollowToggle" />
-      </label>
+      <p class="hint">Click any word, or select a phrase, to translate it.</p>
       <label class="row">
         <span>Hover-to-translate</span>
         <input type="checkbox" id="hoverToggle" />
@@ -24,6 +21,53 @@
 
     <section class="settings">
       <p class="hint">Translation runs on-device via Chrome's built-in AI — no account or API key needed. Requires Chrome 138+.</p>
+    </section>
+
+    <section class="reading-aids">
+      <label class="row">
+        <span>Gender / plural color coding</span>
+        <input type="checkbox" id="colorCodingToggle" />
+      </label>
+      <label class="row">
+        <span>Masculine</span>
+        <span class="controls">
+          <input type="checkbox" id="catMasculineToggle" title="Show masculine highlighting" />
+          <input type="color" id="colorMasculine" />
+        </span>
+      </label>
+      <label class="row">
+        <span>Feminine</span>
+        <span class="controls">
+          <input type="checkbox" id="catFeminineToggle" title="Show feminine highlighting" />
+          <input type="color" id="colorFeminine" />
+        </span>
+      </label>
+      <label class="row">
+        <span>Plural</span>
+        <span class="controls">
+          <input type="checkbox" id="catPluralToggle" title="Show plural highlighting" />
+          <input type="color" id="colorPlural" />
+        </span>
+      </label>
+      <label class="row">
+        <span>Neutral</span>
+        <span class="controls">
+          <input type="checkbox" id="catNeutralToggle" title="Show neutral highlighting" />
+          <input type="color" id="colorNeutral" />
+        </span>
+      </label>
+      <label class="row">
+        <span>Frequency dimming</span>
+        <input type="checkbox" id="frequencyDimmingToggle" />
+      </label>
+      <label class="row">
+        <span>Cognate highlighting</span>
+        <input type="checkbox" id="cognateHighlightingToggle" />
+      </label>
+      <div class="row">
+        <span>Reading level</span>
+        <span id="readingLevel">—</span>
+      </div>
     </section>
 
     <section class="actions">

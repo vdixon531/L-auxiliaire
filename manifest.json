@@ -1,21 +1,15 @@
 {
   "manifest_version": 3,
-  "name": "French Learning Assistant",
+  "name": "L'auxiliaire",
   "version": "0.1.0",
   "description": "Hover-translate, save vocabulary, view conjugations, and practice pronunciation for French learning.",
 
   "permissions": [
     "storage",
     "activeTab",
-    "contextMenus",
     "sidePanel",
-    "scripting",
     "alarms",
     "offscreen"
-  ],
-
-  "host_permissions": [
-    "https://en.wiktionary.org/*"
   ],
 
   "background": {
@@ -26,7 +20,7 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content/content-script.js"],
+      "js": ["content/content-script.js", "content/annotator.js"],
       "css": ["content/popup.css"],
       "run_at": "document_idle"
     }
@@ -34,7 +28,7 @@
 
   "action": {
     "default_popup": "popup/popup.html",
-    "default_title": "French Learning Assistant",
+    "default_title": "L'auxiliaire",
     "default_icon": {
       "16": "icons/icon-16.png",
       "48": "icons/icon-48.png",

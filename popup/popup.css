@@ -29,6 +29,19 @@ select, input[type=password] {
   font-size: 13px;
   box-sizing: border-box;
 }
+input[type=color] {
+  width: 40px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.row .controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 button {
   width: 100%;
   padding: 6px;

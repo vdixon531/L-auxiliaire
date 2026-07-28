@@ -6,11 +6,9 @@ const BUBBLE_ID = "fla-bubble";
 const HOVER_DEBOUNCE_MS = 400;
 
 let hoverModeEnabled = false;
-let cursorFollowEnabled = true; // default mode: word-under-cursor indicator, click to translate
 let currentBubble = null;
 let hoverTimer = null;
-let currentReticle = null;
-let reticleRAF = null;
+let isMouseDown = false; // suppresses the hover-dwell popup while a drag-selection is in progress
 
 // Elements a stray click/hover shouldn't hijack — normal page interaction
 // (nav links, buttons, form fields) takes priority over translate-on-click.
@@ -62,6 +60,7 @@ function renderBubble(bubble, { source, translation, sourceLang, targetLang }, c
     <div class="fla-actions">
       <button class="fla-btn fla-save" data-action="save">＋ Save</button>
       <button class="fla-btn fla-conj" data-action="conjugate">Conjugate</button>
+      <button class="fla-btn fla-workbook" data-action="workbook" title="Open workbook">📖 Workbook</button>
     </div>
   `;
 
@@ -73,40 +72,8 @@ function renderBubble(bubble, { source, translation, sourceLang, targetLang }, c
     saveWord({ source, translation, sourceLang, targetLang, contextSentence });
   bubble.querySelector('[data-action="conjugate"]').onclick = () =>
     requestConjugation(sourceLang === "fr" ? source : translation);
-}
-
-// -----------------------------
-// Cursor-follow reticle (default mode)
-// -----------------------------
-
-function removeReticle() {
-  if (currentReticle) {
-    currentReticle.remove();
-    currentReticle = null;
-  }
-}
-
-function updateReticle(clientX, clientY) {
-  const el = document.elementFromPoint(clientX, clientY);
-  if (isInteractiveTarget(el) || (currentBubble && currentBubble.contains(el))) {
-    removeReticle();
-    return;
-  }
-
-  const word = getWordAtPoint(clientX, clientY);
-  if (!word || !word.text) {
-    removeReticle();
-    return;
-  }
-
-  if (!currentReticle) {
-    currentReticle = document.createElement("div");
-    currentReticle.className = "fla-reticle";
-    document.body.appendChild(currentReticle);
-  }
-  currentReticle.textContent = word.text;
-  currentReticle.style.left = `${window.scrollX + word.rect.left}px`;
-  currentReticle.style.top = `${window.scrollY + word.rect.top - 22}px`;
+  bubble.querySelector('[data-action="workbook"]').onclick = () =>
+    chrome.runtime.sendMessage({ type: "OPEN_SIDEPANEL", view: "vocab" });
 }
 
 function escapeHtml(str) {
@@ -204,10 +171,23 @@ function getSelectionText() {
   return { text, rect, range };
 }
 
+// A selection stays highlighted on the page (and its translation bubble
+// stays up) until the user clicks elsewhere to collapse it — hover mode
+// must not steal that bubble out from under them just because the cursor
+// happens to drift over some other word in the meantime.
+function hasActiveSelection() {
+  const sel = window.getSelection();
+  return !!sel && !sel.isCollapsed && sel.toString().trim().length > 0;
+}
+
+document.addEventListener("mousedown", () => {
+  isMouseDown = true;
+});
+
 document.addEventListener("mouseup", async (e) => {
-  // Ignore clicks inside our own bubble or reticle
+  isMouseDown = false;
+  // Ignore clicks inside our own bubble
   if (currentBubble && currentBubble.contains(e.target)) return;
-  if (currentReticle && currentReticle.contains(e.target)) return;
 
   const sel = getSelectionText();
   if (sel) {
@@ -221,16 +201,13 @@ document.addEventListener("mouseup", async (e) => {
 
   removeBubble();
 
-  // Cursor-follow mode: a plain click (no drag-selection) translates the
-  // word under the cursor. Hover mode replaces this with dwell-to-reveal,
-  // so it takes priority when both happen to be on.
-  if (!cursorFollowEnabled || hoverModeEnabled) return;
+  // Click-to-translate a single word is always available — hover mode (below)
+  // is purely additive on top of it, not an alternative.
   if (isInteractiveTarget(e.target)) return;
 
   const word = getWordAtPoint(e.clientX, e.clientY);
   if (!word || !word.text) return;
 
-  removeReticle();
   const contextSentence = getContextSentence(word.range);
   const x = window.scrollX + word.rect.left;
   const y = window.scrollY + word.rect.bottom + 8;
@@ -239,38 +216,35 @@ document.addEventListener("mouseup", async (e) => {
 });
 
 // -----------------------------
-// Hover mode (dwell-to-reveal) / cursor-follow reticle
+// Hover mode (dwell-to-reveal) — optional, additive on top of click-to-translate
 // -----------------------------
 
 document.addEventListener("mousemove", (e) => {
-  if (hoverModeEnabled) {
-    removeReticle();
-    clearTimeout(hoverTimer);
-    hoverTimer = setTimeout(async () => {
-      if (isInteractiveTarget(e.target)) return;
-      const word = getWordAtPoint(e.clientX, e.clientY);
-      if (!word || !word.text) return;
+  if (!hoverModeEnabled) return;
+  clearTimeout(hoverTimer);
+  // A drag-selection in progress fires mousemove continuously too — without
+  // this guard, the dwell timer would keep popping up single-word bubbles
+  // over whatever word the cursor passes, fighting with the multi-word
+  // selection the user is trying to make.
+  if (isMouseDown) return;
+  // A completed selection stays highlighted (and its own bubble stays up)
+  // until the user clicks elsewhere — don't replace it just because the
+  // cursor drifted over another word afterward.
+  if (hasActiveSelection()) return;
 
-      const contextSentence = getContextSentence(word.range);
-      const x = window.scrollX + word.rect.left;
-      const y = window.scrollY + word.rect.bottom + 8;
-      const bubble = createBubble(x, y);
-      await requestTranslation(word.text, bubble, contextSentence);
-    }, HOVER_DEBOUNCE_MS);
-    return;
-  }
+  hoverTimer = setTimeout(async () => {
+    if (isMouseDown) return; // drag may have started during the debounce window
+    if (hasActiveSelection()) return; // selection may have been made during the debounce window
+    if (isInteractiveTarget(e.target)) return;
+    const word = getWordAtPoint(e.clientX, e.clientY);
+    if (!word || !word.text) return;
 
-  if (!cursorFollowEnabled) {
-    removeReticle();
-    return;
-  }
-
-  const { clientX, clientY } = e;
-  if (reticleRAF) return;
-  reticleRAF = requestAnimationFrame(() => {
-    reticleRAF = null;
-    updateReticle(clientX, clientY);
-  });
+    const contextSentence = getContextSentence(word.range);
+    const x = window.scrollX + word.rect.left;
+    const y = window.scrollY + word.rect.bottom + 8;
+    const bubble = createBubble(x, y);
+    await requestTranslation(word.text, bubble, contextSentence);
+  }, HOVER_DEBOUNCE_MS);
 });
 
 function getWordAtPoint(x, y) {
@@ -296,6 +270,20 @@ function getWordAtPoint(x, y) {
   const wordRange = document.createRange();
   wordRange.setStart(node, start);
   wordRange.setEnd(node, end);
+
+  // caretRangeFromPoint snaps to the NEAREST caret position even when (x, y)
+  // isn't actually over any text — over an image, a margin, empty space
+  // beside a short line, etc. — which otherwise makes hover/click "reach"
+  // for whatever word happens to be closest. Reject unless the point truly
+  // falls inside the resolved word's own rect(s) (checking every line rect,
+  // not just the bounding box, since a wrapped word's bounding box can span
+  // a gap that isn't actually part of the word on either line).
+  const rects = wordRange.getClientRects();
+  const inside = [...rects].some(
+    (r) => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom
+  );
+  if (!inside) return null;
+
   return { text: wordText, rect: wordRange.getBoundingClientRect(), range: wordRange };
 }
 
@@ -384,11 +372,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (!hoverModeEnabled) removeBubble();
     sendResponse({ ok: true });
   }
-  if (msg.type === "SET_CURSOR_MODE") {
-    cursorFollowEnabled = !!msg.enabled;
-    if (!cursorFollowEnabled) removeReticle();
-    sendResponse({ ok: true });
-  }
   if (msg.type === "TRANSLATE_STATUS") {
     // One-time notice while Chrome downloads the on-device language pack —
     // otherwise the bubble just sits on "Translating…" with no feedback.
@@ -408,7 +391,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 });
 
 // Load initial mode state
-chrome.storage.local.get(["hoverModeEnabled", "cursorFollowMode"]).then((s) => {
-  hoverModeEnabled = !!s.hoverModeEnabled;
-  cursorFollowEnabled = s.cursorFollowMode !== false; // default on
+chrome.storage.local.get("config").then(({ config = {} }) => {
+  hoverModeEnabled = !!config.hoverModeEnabled;
 });

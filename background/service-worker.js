@@ -3,12 +3,16 @@
 // offscreen document), vocab storage, conjugation lookups, side panel
 // orchestration, keyboard commands.
 
-import { conjugate, isKnownVerb } from "./conjugation.js";
+import { conjugate, isKnownVerb, resolveLemma } from "./conjugation.js";
 import { getCachedTranslation, setCachedTranslation, ensureCacheEvictionAlarm } from "./cache.js";
 import { detectLang } from "./detect-lang.js";
 import { normalizeUrl } from "../lib/normalize-url.js";
+import { dueAtForBox } from "./srs.js";
+import { lookupWord, annotateWords } from "./lexicon.js";
 
 const STORAGE_KEY_VOCAB = "vocab";
+const STORAGE_KEY_CARDS = "cards";
+const STORAGE_KEY_VERBS = "verbs";
 const STORAGE_KEY_CONFIG = "config";
 
 // -----------------------------
@@ -90,28 +94,131 @@ async function translate(text, contextSentence = "", tabId) {
 // -----------------------------
 // Vocab storage
 // -----------------------------
+//
+// `vocab[url]` holds occurrences — one per save, carrying the context
+// sentence for that specific page. SRS state does NOT live there: the same
+// word saved from two different pages is one card to review, not two, so
+// box/dueAt/etc. live in `cards`, keyed by lemma, with each occurrence
+// pointing at its card via `cardId`. This also means a due-review query
+// scans `cards` (one entry per distinct word) instead of every URL bucket.
 
-async function saveWord(entry) {
-  const { [STORAGE_KEY_VOCAB]: vocab = {} } =
-    await chrome.storage.local.get(STORAGE_KEY_VOCAB);
+function buildCard(lemma, entry, contextSentence, occurrenceRef, savedAt) {
+  return {
+    lemma,
+    sourceLang: entry.sourceLang,
+    targetLang: entry.targetLang,
+    translation: entry.translation,
+    pos: entry.pos,
+    gender: entry.gender,
+    plural: entry.plural,
+    contextSentence,
+    occurrenceIds: [occurrenceRef],
+    box: 1,
+    dueAt: dueAtForBox(1, savedAt),
+    lastReviewedAt: null,
+    correctStreak: 0,
+    totalReviews: 0,
+    createdAt: savedAt
+  };
+}
+
+async function saveWord(rawEntry) {
+  const { [STORAGE_KEY_VOCAB]: vocab = {}, [STORAGE_KEY_CARDS]: cards = {} } =
+    await chrome.storage.local.get([STORAGE_KEY_VOCAB, STORAGE_KEY_CARDS]);
   // Normalized here, not at the call site, so every path into vocab storage
   // (just SAVE_WORD today) gets it automatically — ?utm_source=... and
   // #fragment variants of the same article would otherwise fragment its
   // workbook across several buckets.
-  const url = normalizeUrl(entry.url);
+  const url = normalizeUrl(rawEntry.url);
+  const savedAt = Date.now();
+  // Never save a bare word: fall back to the source itself if extraction failed.
+  const contextSentence = rawEntry.contextSentence || rawEntry.source;
+  const lemma = await resolveLemma(rawEntry.source);
+
+  // pos/gender/plural have existed on vocab occurrences/cards since Phase 1
+  // but nothing ever populated them — fill them from the bundled lexicon when
+  // the caller didn't already supply them (content-script never does today).
+  // lookupWord's own whitespace guard makes this a safe no-op for phrase saves.
+  const lexEntry = await lookupWord(rawEntry.source);
+  const entry = {
+    ...rawEntry,
+    pos: rawEntry.pos ?? lexEntry?.pos,
+    gender: rawEntry.gender ?? lexEntry?.gender,
+    plural: rawEntry.plural ?? (lexEntry ? lexEntry.number === "p" : undefined)
+  };
+  const occurrenceId = crypto.randomUUID();
+
   const list = vocab[url] || [];
   list.push({
     ...entry,
-    // Never save a bare word: fall back to the source itself if extraction failed.
-    contextSentence: entry.contextSentence || entry.source,
-    id: crypto.randomUUID(),
-    savedAt: Date.now(),
+    contextSentence,
+    id: occurrenceId,
+    cardId: lemma,
+    savedAt,
     url
   });
   vocab[url] = list;
-  await chrome.storage.local.set({ [STORAGE_KEY_VOCAB]: vocab });
+
+  const occurrenceRef = { url, id: occurrenceId };
+  const existingCard = cards[lemma];
+  if (existingCard) {
+    // Re-encountering a known word updates its display fields (latest
+    // translation/context) but never touches box/dueAt/streak — only an
+    // actual review (RECORD_REVIEW, Phase 3) changes SRS state.
+    existingCard.translation = entry.translation;
+    existingCard.pos = entry.pos;
+    existingCard.gender = entry.gender;
+    existingCard.plural = entry.plural;
+    existingCard.contextSentence = contextSentence;
+    existingCard.occurrenceIds.push(occurrenceRef);
+  } else {
+    cards[lemma] = buildCard(lemma, entry, contextSentence, occurrenceRef, savedAt);
+  }
+
+  await chrome.storage.local.set({ [STORAGE_KEY_VOCAB]: vocab, [STORAGE_KEY_CARDS]: cards });
   const count = Object.values(vocab).reduce((sum, arr) => sum + arr.length, 0);
   return { ok: true, count };
+}
+
+// One-time migration: hoverModeEnabled used to live as a top-level storage
+// key; CLAUDE.md always documented it as nested under config, and
+// popup.js/content-script.js/this file now agree with that, so fold any
+// pre-existing top-level value in before dropping it. Also drops
+// config.cursorFollowMode entirely — cursor-follow mode (the reticle +
+// click-only alternative to hover) was removed; click-to-translate is now
+// always on, so that setting no longer means anything, wherever it lives.
+async function migrateHoverModeIntoConfig() {
+  const { hoverModeEnabled, cursorFollowMode, [STORAGE_KEY_CONFIG]: config = {} } =
+    await chrome.storage.local.get(["hoverModeEnabled", "cursorFollowMode", STORAGE_KEY_CONFIG]);
+
+  const merged = { ...config };
+  let changed = false;
+  if (hoverModeEnabled !== undefined) {
+    merged.hoverModeEnabled = hoverModeEnabled;
+    changed = true;
+  }
+  if (cursorFollowMode !== undefined) changed = true; // legacy top-level key — drop, don't migrate in
+  if (merged.cursorFollowMode !== undefined) {
+    delete merged.cursorFollowMode;
+    changed = true;
+  }
+  if (!changed) return;
+
+  await chrome.storage.local.set({ [STORAGE_KEY_CONFIG]: merged });
+  await chrome.storage.local.remove(["hoverModeEnabled", "cursorFollowMode"]);
+  console.log("[FLA] migrated hoverModeEnabled into config; dropped retired cursorFollowMode");
+}
+
+// -----------------------------
+// Verb workbook storage
+// -----------------------------
+
+async function saveVerb(table) {
+  const { [STORAGE_KEY_VERBS]: verbs = [] } =
+    await chrome.storage.local.get(STORAGE_KEY_VERBS);
+  verbs.push({ ...table, savedAt: Date.now(), id: crypto.randomUUID() });
+  await chrome.storage.local.set({ [STORAGE_KEY_VERBS]: verbs });
+  return { ok: true };
 }
 
 // One-time migration: vocab used to be a flat array; it's now keyed by URL
@@ -156,6 +263,59 @@ async function migrateVocabUrlNormalization() {
   console.log(`[FLA] normalized vocab URL keys into ${Object.keys(merged).length} buckets`);
 }
 
+// One-time migration: SRS fields used to be documented as living inline per
+// occurrence, which meant the same word saved from two pages would become
+// two independent cards and a due-review query would have to scan every URL
+// bucket. Builds the `cards` store (keyed by lemma) from existing vocab
+// occurrences. Runs after the two migrations above, since it needs final
+// (per-URL, normalized) vocab keys and stamps each occurrence with cardId.
+async function migrateVocabToCards() {
+  const { [STORAGE_KEY_VOCAB]: vocab, [STORAGE_KEY_CARDS]: cards } =
+    await chrome.storage.local.get([STORAGE_KEY_VOCAB, STORAGE_KEY_CARDS]);
+  if (!vocab || cards) return; // nothing to migrate, or already migrated
+
+  const builtCards = {};
+  // Tracked separately from card.createdAt: createdAt becomes the EARLIEST
+  // occurrence (first exposure, so dueAt reflects when the word was first
+  // learned), while this tracks the MOST RECENT one, so display fields
+  // (translation/context) always end up reflecting the latest save
+  // regardless of what order Object.entries(vocab) happens to visit URLs in.
+  const latestSavedAt = {};
+  const migratedVocab = {};
+  for (const [url, entries] of Object.entries(vocab)) {
+    migratedVocab[url] = [];
+    for (const entry of entries) {
+      const lemma = await resolveLemma(entry.source);
+      migratedVocab[url].push({ ...entry, cardId: lemma });
+
+      const occurrenceRef = { url, id: entry.id };
+      const existing = builtCards[lemma];
+      if (!existing) {
+        builtCards[lemma] = buildCard(lemma, entry, entry.contextSentence, occurrenceRef, entry.savedAt);
+        latestSavedAt[lemma] = entry.savedAt;
+        continue;
+      }
+
+      existing.occurrenceIds.push(occurrenceRef);
+      if (entry.savedAt < existing.createdAt) {
+        existing.createdAt = entry.savedAt;
+        existing.dueAt = dueAtForBox(existing.box, entry.savedAt);
+      }
+      if (entry.savedAt >= latestSavedAt[lemma]) {
+        existing.translation = entry.translation;
+        existing.pos = entry.pos;
+        existing.gender = entry.gender;
+        existing.plural = entry.plural;
+        existing.contextSentence = entry.contextSentence;
+        latestSavedAt[lemma] = entry.savedAt;
+      }
+    }
+  }
+
+  await chrome.storage.local.set({ [STORAGE_KEY_VOCAB]: migratedVocab, [STORAGE_KEY_CARDS]: builtCards });
+  console.log(`[FLA] built ${Object.keys(builtCards).length} SRS cards from existing vocab occurrences`);
+}
+
 // -----------------------------
 // Message router
 // -----------------------------
@@ -170,8 +330,10 @@ async function migrateVocabUrlNormalization() {
 const HANDLED_MESSAGE_TYPES = new Set([
   "TRANSLATE",
   "SAVE_WORD",
+  "SAVE_VERB",
   "CONJUGATE",
-  "OPEN_SIDEPANEL"
+  "OPEN_SIDEPANEL",
+  "LOOKUP_WORDS"
 ]);
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -189,6 +351,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           const withUrl = { ...msg.entry, url: sender.tab?.url };
           const res = await saveWord(withUrl);
           sendResponse(res);
+          break;
+        }
+        case "SAVE_VERB": {
+          const res = await saveVerb(msg.table);
+          sendResponse(res);
+          break;
+        }
+        case "LOOKUP_WORDS": {
+          const result = await annotateWords(msg.words);
+          sendResponse(result);
           break;
         }
         case "CONJUGATE": {
@@ -239,11 +411,12 @@ chrome.commands.onCommand.addListener(async (command) => {
   if (!tab?.id) return;
 
   if (command === "toggle-hover-translate") {
-    const { hoverModeEnabled = false } = await chrome.storage.local.get(
-      "hoverModeEnabled"
-    );
-    const next = !hoverModeEnabled;
-    await chrome.storage.local.set({ hoverModeEnabled: next });
+    const { [STORAGE_KEY_CONFIG]: config = {} } =
+      await chrome.storage.local.get(STORAGE_KEY_CONFIG);
+    const next = !config.hoverModeEnabled;
+    await chrome.storage.local.set({
+      [STORAGE_KEY_CONFIG]: { ...config, hoverModeEnabled: next }
+    });
     chrome.tabs.sendMessage(tab.id, { type: "SET_HOVER_MODE", enabled: next });
   }
   if (command === "read-selection") {
@@ -259,9 +432,12 @@ chrome.runtime.onInstalled.addListener(async () => {
   chrome.sidePanel
     .setPanelBehavior({ openPanelOnActionClick: false })
     .catch(() => {});
-  // Sequential, not Promise.all — URL normalization assumes the per-URL
-  // shape the first migration produces.
+  await migrateHoverModeIntoConfig();
+  // Sequential, not Promise.all — each migration assumes the shape the
+  // previous one produces (per-URL keying, then normalized URL keys, then
+  // cards built from the final vocab).
   await migrateVocabToPerUrl();
   await migrateVocabUrlNormalization();
+  await migrateVocabToCards();
   ensureCacheEvictionAlarm();
 });

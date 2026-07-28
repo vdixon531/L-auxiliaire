@@ -38,8 +38,9 @@ function normalize(str) {
     .replace(/[̀-ͯ]/g, "");
 }
 
-// Must match scripts/build-verbiste.js's shardKeyOf exactly, or a word looks
-// up a shard that was never built for it.
+// Must match scripts/shard-writer.js's shardKeyOf exactly (also duplicated in
+// background/lexicon.js, for the same reason) — or a word looks up a shard
+// that was never built for it.
 function shardKeyOf(normalized) {
   return /^[a-z]/.test(normalized) ? normalized[0] : "_other";
 }
@@ -97,3 +98,17 @@ export async function conjugate(word) {
 }
 
 export const PRONOUNS = ["je", "tu", "il/elle", "nous", "vous", "ils/elles"];
+
+// Resolves a saved word to the key its SRS card should live under. Verb
+// forms collapse onto their infinitive ("mangeons" -> "manger") so the same
+// verb reviewed in different tenses is one card, not several. There's no
+// general-purpose lemmatizer yet (Lexique-derived data/lexicon.json is
+// Phase 2), so anything conjugate() doesn't recognize falls back to its own
+// normalized surface form. Case only, not accents: French accents are
+// meaning-bearing (ou/où, a/à), so stripping them would wrongly merge
+// distinct words into one card.
+export async function resolveLemma(word) {
+  const table = await conjugate(word);
+  if (table) return table.infinitive;
+  return word.trim().toLowerCase();
+}

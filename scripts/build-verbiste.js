@@ -21,37 +21,13 @@
 
 const fs = require("fs");
 const path = require("path");
+const { normalize, shardKeyOf, writeSharded } = require("./shard-writer.js");
 
 const SRC_DIR = path.join(__dirname, "verbiste-source");
 const CONJUGATIONS_PATH = path.join(SRC_DIR, "conjugations-fr.xml");
 const VERBS_PATH = path.join(SRC_DIR, "verbs-fr.xml");
 const VERBS_OUT_DIR = path.join(__dirname, "..", "data", "verbs");
 const LEMMAS_OUT_DIR = path.join(__dirname, "..", "data", "lemmas");
-
-// Same normalization background/conjugation.js uses at runtime — the shard a
-// word lands in at build time must match the shard it's looked up in later.
-function normalize(str) {
-  return str
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "");
-}
-
-function shardKeyOf(normalized) {
-  return /^[a-z]/.test(normalized) ? normalized[0] : "_other";
-}
-
-function writeSharded(dir, buckets) {
-  fs.mkdirSync(dir, { recursive: true });
-  // Clear stale shards from a previous run in case the dataset shrank.
-  for (const f of fs.readdirSync(dir)) {
-    if (f.endsWith(".json")) fs.unlinkSync(path.join(dir, f));
-  }
-  for (const [key, obj] of Object.entries(buckets)) {
-    fs.writeFileSync(path.join(dir, `${key}.json`), JSON.stringify(obj));
-  }
-  return Object.keys(buckets).length;
-}
 
 // Fixed positional layout of the 51 <i> tags per <template>, per the DTD:
 // Infinitif(1) Indicatif(6+6+6+6) Conditionnel(6) Subjonctif(6+6) Imperatif(3) Participe(1+4)

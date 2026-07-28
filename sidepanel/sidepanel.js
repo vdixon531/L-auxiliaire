@@ -71,13 +71,24 @@ async function renderVocab(filter = "") {
 }
 
 async function deleteEntry(url, id) {
-  const { vocab = {} } = await chrome.storage.local.get("vocab");
+  const { vocab = {}, cards = {} } = await chrome.storage.local.get(["vocab", "cards"]);
   const bucket = url || "unknown";
+  const removed = vocab[bucket]?.find((v) => v.id === id);
   if (vocab[bucket]) {
     vocab[bucket] = vocab[bucket].filter((v) => v.id !== id);
     if (vocab[bucket].length === 0) delete vocab[bucket];
   }
-  await chrome.storage.local.set({ vocab });
+
+  // Drop this occurrence's pointer from its card; if that was the card's
+  // last occurrence, the word isn't saved anywhere anymore, so it shouldn't
+  // keep coming up for review either.
+  const card = removed && cards[removed.cardId];
+  if (card) {
+    card.occurrenceIds = card.occurrenceIds.filter((ref) => !(ref.url === bucket && ref.id === id));
+    if (card.occurrenceIds.length === 0) delete cards[removed.cardId];
+  }
+
+  await chrome.storage.local.set({ vocab, cards });
   renderVocab($("vocabSearch").value);
 }
 
@@ -188,9 +199,7 @@ function renderConjugationTable(table) {
 }
 
 async function saveVerbTable(table) {
-  const { verbs = [] } = await chrome.storage.local.get("verbs");
-  verbs.push({ ...table, savedAt: Date.now(), id: crypto.randomUUID() });
-  await chrome.storage.local.set({ verbs });
+  await chrome.runtime.sendMessage({ type: "SAVE_VERB", table });
 }
 
 // -----------------------------

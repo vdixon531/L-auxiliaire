@@ -3,3 +3,9 @@ node_modules/
 *.log
 .env
 .vscode/
+
+# Lexique.org raw download — only the .tsv is read by scripts/build-lexicon.js;
+# the .pdf/.xlsx are unused duplicate-format copies from the download (~37MB
+# each). Extension ships data/lexicon/ (generated), never this raw folder.
+data/Lexique4/*
+!data/Lexique4/Lexique4.tsv

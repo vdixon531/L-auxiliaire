@@ -58,6 +58,7 @@
 
 .fla-bubble .fla-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   margin-top: 8px;
   padding-top: 8px;
@@ -86,25 +87,38 @@
   font-size: 11px;
 }
 
-.fla-reticle {
-  position: absolute;
-  z-index: 2147483646;
-  pointer-events: none;
-  background: rgba(30, 30, 30, 0.85);
-  color: #fff;
-  border-radius: 4px;
-  padding: 2px 6px;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-size: 11px;
-  line-height: 1.4;
-  white-space: nowrap;
+/* Reading aids (Phase 2): gender/plural color-coding, frequency dimming,
+   cognate underlines. Words are always tagged with these classes at scan
+   time — visibility is gated by a class on <html> (toggled from config by
+   annotator.js) rather than re-walking the DOM every time a setting flips. */
+
+.fla-word {
+  pointer-events: none; /* never intercept hover/click word-detection */
 }
 
-@media (prefers-color-scheme: dark) {
-  .fla-reticle {
-    background: rgba(230, 230, 230, 0.9);
-    color: #111;
-  }
+html.fla-colorcoding-on.fla-cat-masculine-on .fla-word--masculine {
+  color: var(--fla-color-masculine, #4a90d9);
+}
+
+html.fla-colorcoding-on.fla-cat-feminine-on .fla-word--feminine {
+  color: var(--fla-color-feminine, #d9498a);
+}
+
+html.fla-colorcoding-on.fla-cat-plural-on .fla-word--plural {
+  color: var(--fla-color-plural, #2ea44f);
+}
+
+html.fla-colorcoding-on.fla-cat-neutral-on .fla-word--neutral {
+  color: var(--fla-color-neutral, #888888);
+}
+
+html.fla-dimming-on .fla-dim {
+  opacity: 0.45;
+}
+
+html.fla-cognates-on .fla-cognate {
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
 }
 
 @media (prefers-color-scheme: dark) {
