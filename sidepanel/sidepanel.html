@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="sidepanel.css" />
+  </head>
+  <body>
+    <nav class="tabs">
+      <button class="tab active" data-view="vocab">Vocabulary</button>
+      <button class="tab" data-view="conjugation">Conjugation</button>
+      <button class="tab" data-view="practice">Practice</button>
+    </nav>
+
+    <section id="vocab" class="view active">
+      <div class="toolbar">
+        <input id="vocabSearch" placeholder="Search saved words…" />
+        <button id="exportCsv">Export CSV</button>
+        <button id="exportAnki">Export Anki</button>
+      </div>
+      <ul id="vocabList"></ul>
+    </section>
+
+    <section id="conjugation" class="view">
+      <div class="toolbar">
+        <input id="verbInput" placeholder="Enter infinitive (e.g. manger)" />
+        <button id="lookupVerb">Look up</button>
+      </div>
+      <div id="conjugationTable"></div>
+    </section>
+
+    <section id="practice" class="view">
+      <p class="hint">Stretch goal: pronunciation practice. Coming soon.</p>
+      <button id="micBtn" disabled>🎤 Speak</button>
+      <div id="practiceResult"></div>
+    </section>
+
+    <script src="sidepanel.js"></script>
+  </body>
+</html>

@@ -1,0 +1,192 @@
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  margin: 0;
+  color: #1a1a1a;
+  font-size: 14px;
+}
+
+.tabs {
+  display: flex;
+  border-bottom: 1px solid #ddd;
+  background: #fafafa;
+}
+
+.tab {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  font-size: 13px;
+}
+
+.tab.active {
+  border-bottom-color: #4a90e2;
+  font-weight: 600;
+}
+
+.view {
+  display: none;
+  padding: 12px;
+}
+
+.view.active {
+  display: block;
+}
+
+.toolbar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.toolbar input {
+  flex: 1;
+  padding: 5px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.toolbar button, .save-verb, #micBtn {
+  padding: 5px 10px;
+  border: 1px solid #4a90e2;
+  background: white;
+  color: #4a90e2;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.toolbar button:hover {
+  background: #f0f6ff;
+}
+
+#vocabList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.entry {
+  padding: 8px;
+  border: 1px solid #eee;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  position: relative;
+}
+
+.entry-source, .entry-translation {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+}
+
+.entry-translation {
+  color: #555;
+}
+
+.entry-context {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px dashed #eee;
+  color: #999;
+  font-size: 12px;
+  font-style: italic;
+}
+
+.lang {
+  font-size: 9px;
+  text-transform: uppercase;
+  color: #999;
+  min-width: 18px;
+  font-weight: 600;
+}
+
+.speak {
+  padding: 2px 6px;
+  font-size: 10px;
+  background: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.delete {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #aaa;
+  font-size: 16px;
+  padding: 0 6px;
+}
+
+.delete:hover {
+  color: #c62828;
+}
+
+.empty {
+  color: #999;
+  text-align: center;
+  padding: 20px;
+  list-style: none;
+}
+
+.verb-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.verb-header h2 {
+  margin: 0;
+  font-size: 20px;
+  color: #4a90e2;
+}
+
+.tense {
+  margin-bottom: 16px;
+}
+
+.tense h3 {
+  font-size: 12px;
+  text-transform: uppercase;
+  color: #666;
+  margin: 0 0 4px;
+  letter-spacing: 0.5px;
+}
+
+.tense table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.tense td {
+  padding: 4px 6px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.pronoun {
+  color: #999;
+  width: 60px;
+  font-style: italic;
+}
+
+.error {
+  color: #c62828;
+  padding: 10px;
+  background: #fef5f5;
+  border-radius: 4px;
+}
+
+.hint {
+  color: #999;
+  font-style: italic;
+}

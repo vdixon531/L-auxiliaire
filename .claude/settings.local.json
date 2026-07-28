@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node *)",
+      "Bash(curl -s \"https://api.github.com/search/code?q=repo:bretttolbert/verbecc+filename:conjugation-fr.xml\")",
+      "Bash(curl -sL \"https://api.github.com/repos/bretttolbert/verbecc/git/trees/master?recursive=1\")",
+      "Bash(curl -s \"https://api.github.com/repos/bretttolbert/verbecc\")",
+      "Bash(curl -sL \"https://api.github.com/repos/bretttolbert/verbecc/git/trees/main?recursive=1\")",
+      "Bash(curl -sL \"https://raw.githubusercontent.com/bretttolbert/verbecc/main/verbecc/data/xml/conjugations/conjugations-fr.xml\" -o scratch_verbiste/conjugations-fr.xml)",
+      "Bash(curl -sL \"https://raw.githubusercontent.com/bretttolbert/verbecc/main/verbecc/data/xml/verbs/verbs-fr.xml\" -o scratch_verbiste/verbs-fr.xml)",
+      "Bash(awk '/<template name=\"aim:er\"/,/<\\\\/template>/' scratch_verbiste/conjugations-fr.xml)",
+      "Bash(awk '/<template name=\":être\"/,/<\\\\/template>/' scratch_verbiste/conjugations-fr.xml)",
+      "Bash(awk '/<template name=\"app:eler\"/,/<\\\\/template>/' scratch_verbiste/conjugations-fr.xml)",
+      "Bash(awk '/<template name=\"dép:ecer\"/,/<\\\\/template>/' scripts/verbiste-source/conjugations-fr.xml)",
+      "WebSearch",
+      "WebFetch(domain:developer.chrome.com)",
+      "WebFetch(domain:www.deepl.com)"
+    ]
+  }
+}

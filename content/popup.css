@@ -1,0 +1,128 @@
+/* Floating translation bubble - kept namespaced to avoid host page collisions */
+
+.fla-bubble {
+  position: absolute;
+  z-index: 2147483647;
+  min-width: 240px;
+  max-width: 380px;
+  background: #ffffff;
+  color: #1a1a1a;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  padding: 10px 12px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.fla-bubble .fla-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.fla-bubble .fla-translation {
+  border-top: 1px solid #f0f0f0;
+  margin-top: 4px;
+  padding-top: 8px;
+}
+
+.fla-bubble .fla-lang {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: #888;
+  min-width: 22px;
+  font-weight: 600;
+}
+
+.fla-bubble .fla-text {
+  flex: 1;
+  word-break: break-word;
+}
+
+.fla-bubble .fla-btn {
+  background: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 3px 8px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #333;
+}
+
+.fla-bubble .fla-btn:hover {
+  background: #ececec;
+}
+
+.fla-bubble .fla-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.fla-bubble .fla-loading,
+.fla-bubble .fla-error {
+  padding: 4px 0;
+  color: #666;
+  font-style: italic;
+}
+
+.fla-bubble .fla-error {
+  color: #c62828;
+}
+
+.fla-bubble .fla-flash {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  background: #2e7d32;
+  color: white;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.fla-reticle {
+  position: absolute;
+  z-index: 2147483646;
+  pointer-events: none;
+  background: rgba(30, 30, 30, 0.85);
+  color: #fff;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+@media (prefers-color-scheme: dark) {
+  .fla-reticle {
+    background: rgba(230, 230, 230, 0.9);
+    color: #111;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .fla-bubble {
+    background: #1e1e1e;
+    color: #eee;
+    border-color: #333;
+  }
+  .fla-bubble .fla-btn {
+    background: #2a2a2a;
+    border-color: #444;
+    color: #eee;
+  }
+  .fla-bubble .fla-btn:hover {
+    background: #333;
+  }
+  .fla-bubble .fla-translation,
+  .fla-bubble .fla-actions {
+    border-top-color: #333;
+  }
+}

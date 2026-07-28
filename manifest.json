@@ -1,0 +1,71 @@
+{
+  "manifest_version": 3,
+  "name": "French Learning Assistant",
+  "version": "0.1.0",
+  "description": "Hover-translate, save vocabulary, view conjugations, and practice pronunciation for French learning.",
+
+  "permissions": [
+    "storage",
+    "activeTab",
+    "contextMenus",
+    "sidePanel",
+    "scripting",
+    "alarms",
+    "offscreen"
+  ],
+
+  "host_permissions": [
+    "https://en.wiktionary.org/*"
+  ],
+
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content/content-script.js"],
+      "css": ["content/popup.css"],
+      "run_at": "document_idle"
+    }
+  ],
+
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "French Learning Assistant",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+
+  "side_panel": {
+    "default_path": "sidepanel/sidepanel.html"
+  },
+
+  "icons": {
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+
+  "commands": {
+    "toggle-hover-translate": {
+      "suggested_key": { "default": "Alt+T" },
+      "description": "Toggle hover-to-translate mode"
+    },
+    "read-selection": {
+      "suggested_key": { "default": "Alt+R" },
+      "description": "Read selected text aloud"
+    },
+    "save-word": {
+      "suggested_key": { "default": "Alt+S" },
+      "description": "Save selected word to vocab"
+    }
+  },
+
+  "minimum_chrome_version": "138"
+}
