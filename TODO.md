@@ -1,6 +1,7 @@
 # TODO
 
-Current phase: **Phase 2 — Reading aids**
+Current phase: **Phase 4 — PDF support** (Phase 3, Leitner SRS, deliberately
+deferred — the user prioritized PDF support instead at this stage)
 
 ## Weekend 1 tasks (in order)
 
@@ -129,8 +130,96 @@ Ordered by impact. Phase 1 code is written but has never been run in a browser.
 9. [ ] Consider expanding `data/cognates.json` past its ~360 hand-picked
        high-confidence entries if coverage feels thin in practice.
 
-## Later phases (defer until Phase 2 is done)
+## Phase 4 tasks (PDF support — Phase 3 deferred, see note at top)
+
+Manual-open only, by explicit choice: the alternative (auto-intercepting
+every PDF navigation site-wide) needs `declarativeNetRequest` + broad host
+permissions — a real permission-prompt/Web-Store-review decision, deliberately
+deferred rather than added silently. See CLAUDE.md's Conventions section for
+the full rationale.
+
+1. [x] Vendored PDF.js v6.1.200 into `pdf-viewer/vendor/` (display API only —
+       `pdf.mjs`, `pdf.worker.mjs`, `pdf_viewer.css`, `cmaps/` — not Mozilla's
+       own prebuilt viewer UI). See `vendor/README.txt` for exact provenance
+       and upgrade steps.
+2. [x] `lib/pdf-handoff.js` — IndexedDB-backed handoff of picked/fetched PDF
+       bytes to the viewer tab (not `chrome.storage.session`: no confirmed
+       binary/ArrayBuffer support there, and a 10MB quota that base64 would
+       shrink to ~7.5MB of real PDF — too small for scanned documents).
+       Records aren't deleted on read, only swept periodically (new
+       `chrome.alarms` alarm in `service-worker.js`, mirroring `cache.js`'s
+       eviction pattern) so an accidental viewer-tab reload doesn't strand
+       the user.
+3. [x] Required one-line fix in `service-worker.js`'s `SAVE_WORD` handler —
+       it used to unconditionally overwrite `entry.url` with `sender.tab.url`,
+       which would have corrupted `pdf-viewer/viewer.js`'s `pdf:<hash>` key
+       with the viewer's own `chrome-extension://.../viewer.html?...` address.
+4. [x] `pdf-viewer/viewer.html`/`viewer.js` — continuous-scroll render
+       pipeline (every page gets a correctly-sized placeholder up front;
+       canvas + PDF.js text-layer are only actually rendered once a page
+       scrolls near the viewport, via `IntersectionObserver` — rendering a
+       long PDF's pages all eagerly would be slow/memory-heavy). Content-hash
+       computed via `crypto.subtle.digest`, click/hover/selection-translate logic **ported**
+       from `content/content-script.js` (not shared/injected — content
+       scripts don't run on the extension's own pages; see CLAUDE.md). Same
+       interaction model as web pages: click always translates, hover-dwell
+       is optional/additive, selection always translates the whole selection.
+5. [x] Overlay highlight annotations — `pdfAnnotations` storage keyed by
+       content hash (see CLAUDE.md schema), rects stored in PDF user-space
+       points via PDF.js's `PageViewport#convertToPdfPoint`/
+       `convertToViewportPoint` so they survive zoom/resize. A "🖍 Highlight"
+       button on the translation bubble, alongside Save/Conjugate/Workbook.
+6. [x] Popup entry points: a file picker (`<input type=file>`, always works,
+       any PDF) and a "reopen this PDF" button shown when the active tab's
+       URL already ends in `.pdf` (fetches the tab's URL directly — **known,
+       sizable limitation**: this fetch runs from the popup's
+       `chrome-extension://` origin, so it only succeeds against
+       CORS-permissive hosts; most publisher/enterprise/Drive-hosted PDFs
+       will fail it and show an error pointing at the file picker instead —
+       accepted cost of not requesting new host permissions).
+7. [x] Sidepanel: PDF entries show `entry.pdfTitle || "PDF document"` instead
+       of the raw content hash.
+8. [ ] Load-test in a real browser: open a real multi-page PDF via the file
+       picker, confirm text renders and click/hover/selection-translate all
+       work over PDF.js's text-layer spans, confirm Save/Highlight both land
+       in the same `pdf:<hash>` bucket on reopening the same file, and try
+       the "reopen this PDF" button against both a CORS-friendly and a
+       CORS-blocked host to confirm the failure message is sane rather than
+       a silent hang. **Unvalidated in a real browser yet** — same caveat
+       every previous phase had before its own hands-on pass.
+9. [ ] PDF.js's text runs don't always align 1:1 with visual word boundaries
+       (justified text, rotated text, multi-column layouts) — expect some
+       hover-precision tuning once tested against a real complex-layout PDF.
+10. [ ] Revisit auto-interception (`declarativeNetRequest` + broad host
+        permissions) later if manual-open proves too much friction in
+        practice — deliberately deferred, not ruled out.
+11. [x] Hands-on feedback round after the first real-browser test — three
+        fixes:
+        - Highlight rects merged per visual line before storing/drawing
+          (`mergeLineRects()`) — PDF.js's text layer emits one `<span>` per
+          text run, not per line, so a selected line could produce several
+          slightly-mismatched fragments instead of one clean bar.
+        - Side panel's Vocab tab now has a workbook sidebar (one workbook per
+          saved page/PDF, plus "All workbooks"), with rename and
+          delete-entire-workbook actions. `deleteWorkbook()` also cleans up
+          `cards`/`workbookNames`/`pdfAnnotations` for that workbook, not just
+          `vocab`. Regular web-page saves now capture `pageTitle`
+          (`document.title`) the same way PDF saves capture `pdfTitle`, so
+          workbook labels are readable instead of raw URLs.
+        - Conjugation tab's "＋ Save to workbook" button was actually working
+          but gave zero feedback, so a successful save looked identical to a
+          silently broken one — now shows "Saved ✓" / a failure message.
+12. [x] Switched `pdf-viewer/viewer.js` from single-page-at-a-time to
+        continuous scroll, per direct request — this was the biggest UX gap
+        once someone actually tried reading a multi-page PDF with it.
+        Known limitation, not fully virtualized: rendered pages are never
+        torn back down as they scroll far away, so a very large document
+        (hundreds of pages) will accumulate memory over a long session —
+        acceptable for the realistic case, revisit only if it's a real
+        problem in practice.
+
+## Later phases (defer until Phase 4 is done)
 
 See `README.md` for full roadmap. Summary:
-- Phase 3: Leitner SRS, sentence mining, opt-in gamification
-- Phase 4: PDF.js viewer with same features
+- Phase 3: Leitner SRS, sentence mining, opt-in gamification (deferred ahead
+  of Phase 4 at the user's request — see note at top of this file)

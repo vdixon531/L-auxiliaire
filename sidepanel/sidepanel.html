@@ -12,12 +12,22 @@
     </nav>
 
     <section id="vocab" class="view active">
-      <div class="toolbar">
-        <input id="vocabSearch" placeholder="Search saved words…" />
-        <button id="exportCsv">Export CSV</button>
-        <button id="exportAnki">Export Anki</button>
+      <div class="vocab-layout">
+        <aside id="workbookSidebar"></aside>
+        <div class="vocab-main">
+          <div class="toolbar">
+            <input id="vocabSearch" placeholder="Search saved words…" />
+            <button id="exportCsv">Export CSV</button>
+            <button id="exportAnki">Export Anki</button>
+          </div>
+          <div id="workbookHeader" class="workbook-header" hidden>
+            <span id="workbookTitle"></span>
+            <button id="renameWorkbook" title="Rename this workbook">✎</button>
+            <button id="deleteWorkbook" title="Delete this entire workbook">🗑</button>
+          </div>
+          <ul id="vocabList"></ul>
+        </div>
       </div>
-      <ul id="vocabList"></ul>
     </section>
 
     <section id="conjugation" class="view">

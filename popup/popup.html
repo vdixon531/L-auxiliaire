@@ -70,12 +70,19 @@
       </div>
     </section>
 
+    <section class="pdf">
+      <input type="file" id="pdfFileInput" accept="application/pdf" hidden />
+      <button id="openPdfFile">📄 Open a PDF</button>
+      <button id="reopenPdf" hidden>Reopen this PDF in workbook viewer</button>
+      <p id="pdfError" class="hint" hidden></p>
+    </section>
+
     <section class="actions">
       <button id="openSidepanel">Open workbook</button>
     </section>
 
     <div class="hint">Alt+T: toggle hover · Alt+R: read · Alt+S: save</div>
 
-    <script src="popup.js"></script>
+    <script type="module" src="popup.js"></script>
   </body>
 </html>

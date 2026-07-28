@@ -9,6 +9,7 @@ import { detectLang } from "./detect-lang.js";
 import { normalizeUrl } from "../lib/normalize-url.js";
 import { dueAtForBox } from "./srs.js";
 import { lookupWord, annotateWords } from "./lexicon.js";
+import { sweepStaleHandoffs } from "../lib/pdf-handoff.js";
 
 const STORAGE_KEY_VOCAB = "vocab";
 const STORAGE_KEY_CARDS = "cards";
@@ -348,7 +349,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           break;
         }
         case "SAVE_WORD": {
-          const withUrl = { ...msg.entry, url: sender.tab?.url };
+          // Respect an explicit url the caller already computed (pdf-viewer/
+          // viewer.js sends its own pdf:<sha256hex> content-hash key, since
+          // sender.tab.url there would just be the viewer's own
+          // chrome-extension://.../viewer.html?handoff=... address) — only
+          // fall back to the sending tab's URL when the caller didn't supply one.
+          const withUrl = { ...msg.entry, url: msg.entry.url || sender.tab?.url };
           const res = await saveWord(withUrl);
           sendResponse(res);
           break;
@@ -403,6 +409,30 @@ chrome.runtime.onMessage.addListener((msg) => {
 });
 
 // -----------------------------
+// PDF handoff sweep (pdf-viewer manual-open flow)
+// -----------------------------
+//
+// A picked/fetched PDF's bytes sit in lib/pdf-handoff.js's IndexedDB store
+// just long enough for the new viewer tab to read them — sweeps here the
+// same way cache.js sweeps stale translations, rather than deleting on read,
+// so an accidental viewer-tab reload doesn't strand the user.
+
+const PDF_HANDOFF_SWEEP_ALARM_NAME = "fla-pdf-handoff-sweep";
+const PDF_HANDOFF_SWEEP_PERIOD_MINUTES = 15;
+const PDF_HANDOFF_MAX_AGE_MS = 30 * 60 * 1000; // 30m — ample time for a new tab to load and read it
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === PDF_HANDOFF_SWEEP_ALARM_NAME) sweepStaleHandoffs(PDF_HANDOFF_MAX_AGE_MS);
+});
+
+async function ensureHandoffSweepAlarm() {
+  const existing = await chrome.alarms.get(PDF_HANDOFF_SWEEP_ALARM_NAME);
+  if (!existing) {
+    chrome.alarms.create(PDF_HANDOFF_SWEEP_ALARM_NAME, { periodInMinutes: PDF_HANDOFF_SWEEP_PERIOD_MINUTES });
+  }
+}
+
+// -----------------------------
 // Keyboard commands
 // -----------------------------
 
@@ -440,4 +470,5 @@ chrome.runtime.onInstalled.addListener(async () => {
   await migrateVocabUrlNormalization();
   await migrateVocabToCards();
   ensureCacheEvictionAlarm();
+  ensureHandoffSweepAlarm();
 });

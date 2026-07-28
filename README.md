@@ -37,6 +37,11 @@ A Chrome extension for learning French while you browse. Translate on hover or s
 - Custom PDF viewer via PDF.js — same selection/hover behavior as web pages
 - Per-PDF workbook keyed by content hash
 - Overlay annotations that persist across sessions
+- Manual-open only for now: a file picker in the popup, or a "reopen this PDF"
+  button when Chrome's own viewer is already showing one — not an automatic
+  takeover of every PDF you encounter (MV3 extensions can no longer silently
+  register as the default PDF handler; auto-interception would need
+  `declarativeNetRequest` + broad host permissions, deliberately deferred)
 
 **Stretch goals**
 - Voice input pronunciation practice
@@ -111,8 +116,13 @@ content/
   annotator.js            — Color coding, dimming, cognate underlines, CEFR estimate
   context.js              — Sentence extraction from DOM
   popup.css               — Floating bubble + annotation styles (.fla-* namespaced)
-popup/                    — Toolbar icon popup — settings, color pickers
+popup/                    — Toolbar icon popup — settings, color pickers, PDF entry points
 sidepanel/                — Vocab / Conjugation / Review / Progress tabs
+pdf-viewer/
+  viewer.html/.js         — Custom PDF viewer (manual-open only, see CLAUDE.md);
+                            ports content-script.js's interaction logic rather
+                            than sharing it (different script mechanisms)
+  vendor/                 — Vendored PDF.js display API (see vendor/README.txt)
 data/
   verbs/<letter>.json     — conjugation tables, sharded by infinitive's first letter
   lemmas/<letter>.json    — conjugated form -> infinitive, sharded by its first letter
@@ -121,6 +131,7 @@ data/
 lib/
   fuzzy-match.js          — Levenshtein for review + pronunciation
   normalize-url.js        — Canonicalizes URLs used as vocab keys
+  pdf-handoff.js          — IndexedDB handoff of picked/fetched PDF bytes to pdf-viewer/
 ```
 
 ## Storage

@@ -13,25 +13,140 @@ document.querySelectorAll(".tab").forEach((btn) => {
 function switchView(view) {
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === view));
   document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === view));
-  if (view === "vocab") renderVocab();
+  if (view === "vocab") {
+    renderWorkbookSidebar();
+    renderVocab();
+  }
 }
+
+// -----------------------------
+// Workbooks — each vocab[url] bucket (a regular page's URL, or a PDF's
+// "pdf:<hash>" content-hash key) is its own workbook. `null` selection means
+// "All workbooks", the pre-existing flattened view.
+// -----------------------------
+
+let selectedWorkbook = null;
+
+function labelForWorkbook(url, entries) {
+  const latest = entries[entries.length - 1]; // most recently saved — same "latest wins" convention cards use
+  if (url.startsWith("pdf:")) return latest?.pdfTitle || "PDF document";
+  if (latest?.pageTitle) return latest.pageTitle;
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url;
+  }
+}
+
+async function renderWorkbookSidebar() {
+  const { vocab = {}, workbookNames = {} } = await chrome.storage.local.get(["vocab", "workbookNames"]);
+
+  // The selected workbook may have just been deleted, or emptied by deleting
+  // its last entry — fall back to "All" rather than keeping a dead selection.
+  if (selectedWorkbook && !vocab[selectedWorkbook]) selectedWorkbook = null;
+
+  const totalCount = Object.values(vocab).reduce((sum, arr) => sum + arr.length, 0);
+  const items = [
+    `<div class="workbook-item ${selectedWorkbook === null ? "active" : ""}" data-key="">
+      <span class="workbook-name">All workbooks</span>
+      <span class="workbook-count">${totalCount}</span>
+    </div>`,
+    ...Object.entries(vocab).map(([url, entries]) => {
+      const label = workbookNames[url] || labelForWorkbook(url, entries);
+      return `
+        <div class="workbook-item ${selectedWorkbook === url ? "active" : ""}" data-key="${escapeAttr(url)}">
+          <span class="workbook-name">${escapeHtml(label)}</span>
+          <span class="workbook-count">${entries.length}</span>
+        </div>
+      `;
+    })
+  ];
+  $("workbookSidebar").innerHTML = items.join("");
+
+  $("workbookSidebar").querySelectorAll(".workbook-item").forEach((el) => {
+    el.addEventListener("click", () => {
+      selectedWorkbook = el.dataset.key || null;
+      renderWorkbookSidebar();
+      renderVocab($("vocabSearch").value);
+    });
+  });
+}
+
+function updateWorkbookHeader(vocab, workbookNames) {
+  const header = $("workbookHeader");
+  if (!selectedWorkbook) {
+    header.hidden = true;
+    return;
+  }
+  header.hidden = false;
+  const entries = vocab[selectedWorkbook] || [];
+  $("workbookTitle").textContent = workbookNames[selectedWorkbook] || labelForWorkbook(selectedWorkbook, entries);
+}
+
+async function deleteWorkbook(url) {
+  const { vocab = {}, cards = {}, workbookNames = {}, pdfAnnotations = {} } =
+    await chrome.storage.local.get(["vocab", "cards", "workbookNames", "pdfAnnotations"]);
+
+  const entryIds = new Set((vocab[url] || []).map((e) => e.id));
+  delete vocab[url];
+
+  // Strip this workbook's occurrences out of every card; a card left with no
+  // occurrences anywhere else shouldn't keep coming up for review either.
+  for (const [lemma, card] of Object.entries(cards)) {
+    card.occurrenceIds = card.occurrenceIds.filter((ref) => !(ref.url === url && entryIds.has(ref.id)));
+    if (card.occurrenceIds.length === 0) delete cards[lemma];
+  }
+
+  delete workbookNames[url];
+  if (url.startsWith("pdf:")) delete pdfAnnotations[url.slice(4)];
+
+  await chrome.storage.local.set({ vocab, cards, workbookNames, pdfAnnotations });
+}
+
+$("renameWorkbook").addEventListener("click", async () => {
+  if (!selectedWorkbook) return;
+  const { vocab = {}, workbookNames = {} } = await chrome.storage.local.get(["vocab", "workbookNames"]);
+  const current = workbookNames[selectedWorkbook] || labelForWorkbook(selectedWorkbook, vocab[selectedWorkbook] || []);
+  const next = prompt("Rename this workbook:", current);
+  if (next == null || !next.trim()) return;
+  workbookNames[selectedWorkbook] = next.trim();
+  await chrome.storage.local.set({ workbookNames });
+  await renderWorkbookSidebar();
+  await renderVocab($("vocabSearch").value);
+});
+
+$("deleteWorkbook").addEventListener("click", async () => {
+  if (!selectedWorkbook) return;
+  const { vocab = {}, workbookNames = {} } = await chrome.storage.local.get(["vocab", "workbookNames"]);
+  const entries = vocab[selectedWorkbook] || [];
+  const label = workbookNames[selectedWorkbook] || labelForWorkbook(selectedWorkbook, entries);
+  if (!confirm(`Delete the entire "${label}" workbook? This removes all ${entries.length} saved word(s) in it and can't be undone.`)) {
+    return;
+  }
+  await deleteWorkbook(selectedWorkbook);
+  selectedWorkbook = null;
+  await renderWorkbookSidebar();
+  await renderVocab($("vocabSearch").value);
+});
 
 // -----------------------------
 // Vocab list
 // -----------------------------
 
 async function renderVocab(filter = "") {
-  const { vocab = {} } = await chrome.storage.local.get("vocab");
-  const allEntries = Object.values(vocab).flat();
+  const { vocab = {}, workbookNames = {} } = await chrome.storage.local.get(["vocab", "workbookNames"]);
+  updateWorkbookHeader(vocab, workbookNames);
+
+  const sourceEntries = selectedWorkbook ? vocab[selectedWorkbook] || [] : Object.values(vocab).flat();
   const list = $("vocabList");
   list.innerHTML = "";
   const filtered = filter
-    ? allEntries.filter(
+    ? sourceEntries.filter(
         (v) =>
           v.source.toLowerCase().includes(filter.toLowerCase()) ||
           v.translation.toLowerCase().includes(filter.toLowerCase())
       )
-    : allEntries;
+    : sourceEntries;
 
   if (filtered.length === 0) {
     list.innerHTML = `<li class="empty">No saved words yet.</li>`;
@@ -56,6 +171,7 @@ async function renderVocab(filter = "") {
             <button class="speak" data-text="${escapeAttr(entry.translation)}" data-lang="${entry.targetLang}">▶</button>
           </div>
           ${entry.contextSentence ? `<div class="entry-context">${escapeHtml(entry.contextSentence)}</div>` : ""}
+          ${entry.url?.startsWith("pdf:") ? `<div class="entry-origin">📄 ${escapeHtml(entry.pdfTitle || "PDF document")}</div>` : ""}
           <button class="delete" data-id="${entry.id}" data-url="${escapeAttr(entry.url || "")}">×</button>
         </div>
       `;
@@ -89,6 +205,7 @@ async function deleteEntry(url, id) {
   }
 
   await chrome.storage.local.set({ vocab, cards });
+  await renderWorkbookSidebar();
   renderVocab($("vocabSearch").value);
 }
 
@@ -154,7 +271,7 @@ async function lookupVerb(verb) {
   container.querySelectorAll(".speak").forEach((b) =>
     b.addEventListener("click", () => speak(b.dataset.text, "fr"))
   );
-  container.querySelector(".save-verb")?.addEventListener("click", () => saveVerbTable(resp.table));
+  container.querySelector(".save-verb")?.addEventListener("click", (e) => saveVerbTable(resp.table, e.currentTarget));
 }
 
 const PRONOUNS = ["je", "tu", "il/elle", "nous", "vous", "ils/elles"];
@@ -198,8 +315,27 @@ function renderConjugationTable(table) {
   `;
 }
 
-async function saveVerbTable(table) {
-  await chrome.runtime.sendMessage({ type: "SAVE_VERB", table });
+// The message send itself always worked — but with no visible feedback on
+// success, a successful save looked identical to a silently broken button.
+async function saveVerbTable(table, button) {
+  const original = button?.textContent;
+  try {
+    await chrome.runtime.sendMessage({ type: "SAVE_VERB", table });
+    if (button) {
+      button.textContent = "Saved ✓";
+      button.disabled = true;
+    }
+  } catch (err) {
+    console.error("[FLA sidepanel] save-verb failed", err);
+    if (button) button.textContent = "Save failed — try again";
+  } finally {
+    if (button) {
+      setTimeout(() => {
+        button.textContent = original;
+        button.disabled = false;
+      }, 1500);
+    }
+  }
 }
 
 // -----------------------------
@@ -246,5 +382,6 @@ async function checkIntent() {
   await chrome.storage.local.remove("sidepanelIntent");
 }
 
+renderWorkbookSidebar();
 renderVocab();
 checkIntent();

@@ -13,13 +13,17 @@ Full feature list and roadmap: see `README.md`. Current phase and next tasks: se
 - **SRS state lives on `cards`, keyed by lemma — never on vocab occurrences.** The same word saved from two pages is one card, not two. Each occurrence points at its card via `cardId`; each card tracks its occurrences via `occurrenceIds`. A due-review query scans `cards` (one entry per distinct word), never every URL bucket. `background/conjugation.js`'s `resolveLemma()` collapses verb forms onto their infinitive; anything it doesn't recognize falls back to its own lowercased (accent-preserved) surface form.
 - **Bundled-data lookups (conjugation, lexicon) are background-owned.** `background/lexicon.js` mirrors `conjugation.js`'s shard-cache pattern for `data/lexicon/<letter>.json` + `data/cognates.json`. `saveWord()` fills `pos`/`gender`/`plural` from a lexicon lookup when the caller didn't supply them. `content/annotator.js` batches its per-page word list into one `LOOKUP_WORDS` message per scan rather than looking up bundled data itself, keeping that precedent — even though content scripts technically can fetch bundled extension resources directly.
 - **Reading-aid config (`colorCoding`/`frequencyDimming`/`cognateHighlighting`) is live across every open tab**, not just the active one — `content/annotator.js` reacts via `chrome.storage.onChanged` rather than the `SET_HOVER_MODE`-style "message the active tab" pattern used for interaction-mode toggles. Annotation always tags matched words with their computed classes at scan time; a class on `<html>` gates whether those styles actually render, so flipping a setting never requires re-walking the DOM.
+- **PDF support is manual-open only, by design.** MV3 extensions can't silently register as Chrome's default PDF handler the way the old `mimeHandlerPrivate` API allowed — the realistic options were auto-intercepting every PDF navigation (needs `declarativeNetRequest` + broad host permissions) or manual open (file picker / "reopen this PDF" button, no new permissions). This project chose manual-open; `pdf-viewer/viewer.js` is reached only via `chrome.tabs.create` from `popup.js`, never via navigation interception. `content/content-script.js`'s interaction logic (click/hover/selection translate) is **ported into `viewer.js`, not shared or injected** — content scripts don't run on the extension's own pages, and `viewer.js` is an ES module (extension pages can be, unlike `content_scripts`) while `content-script.js` is a classic script, so there's no clean shared-module path either. Keep both in sync by hand if the core interaction behavior changes.
+- **The PDF viewer scrolls continuously** — every page gets a placeholder sized up front (`pdf-viewer/viewer.js#layoutAllPages()`), but each page's canvas/text-layer/highlights only render once it scrolls near the viewport (`IntersectionObserver`, `ensurePageRendered()`). Because more than one page can be rendered at once, there's no single "current page" viewport — a selection/click's page is looked up via `pageEntryForNode()` (walks up to the nearest `.page` ancestor) rather than assumed, notably in `saveHighlight()`'s PDF-point coordinate conversion.
+- **PDF vocab is keyed by content hash, not URL**: `pdf:<sha256hex>`, computed in `viewer.js` from the PDF's raw bytes. This flows through the *existing* `vocab[url]`/`cards`/`saveWord()` machinery unchanged (`lib/normalize-url.js#normalizeUrl()` passes a `pdf:...` key through untouched — verified, it's a non-special URL scheme with no hostname/trailing-slash to normalize) — the only change needed was making `saveWord()`'s `SAVE_WORD` handler respect an explicit `entry.url` instead of always overwriting it with `sender.tab.url` (which for a viewer tab would be its own `chrome-extension://.../viewer.html?handoff=...` address).
+- **Each `vocab[url]` bucket is a "workbook"** in the side panel's UI (one per page/PDF, plus an "All workbooks" aggregate) — `sidepanel.js`'s `deleteWorkbook()` is the one place that removes a bucket wholesale, and it must clean up every place that references it: strip the deleted occurrences out of `cards[lemma].occurrenceIds` (dropping any card left with none), and drop `workbookNames[url]`/`pdfAnnotations[hash]` too. Deleting a single entry (`deleteEntry()`) does the `cards` part already; adding a new per-workbook side-effect means checking both functions.
 - **Additive message contract** — add fields, don't rename or remove.
 
 ## Message contract
 
 Request → response:
 - `TRANSLATE` `{ text, contextSentence? }` → `{ source, translation, sourceLang, targetLang }`
-- `SAVE_WORD` `{ entry }` → `{ ok, count }`
+- `SAVE_WORD` `{ entry }` → `{ ok, count }` — `entry.url` is used as-is if the caller provides one (e.g. `pdf-viewer/viewer.js`'s `pdf:<hash>` key), only falling back to `sender.tab?.url` when absent (regular content-script saves never set it)
 - `SAVE_VERB` `{ table }` → `{ ok }`
 - `CONJUGATE` `{ verb }` → `{ ok, table } | { error }`
 - `OPEN_SIDEPANEL` `{ view, verb? }` → `{ ok }`
@@ -36,7 +40,12 @@ Request → response:
 {
   vocab: { [url]: [{
     id, cardId, source, translation, sourceLang, targetLang,
-    contextSentence, pos, gender, plural, savedAt, url
+    contextSentence, pos, gender, plural, savedAt, url,
+    pdfTitle,  // only present when url is "pdf:<sha256hex>" — the picked file's
+               // name (or derived from the source URL for "reopen"), since the
+               // hash itself isn't human-readable
+    pageTitle  // only present for regular (non-PDF) saves — document.title at
+               // save time, for the same reason: raw URLs make poor workbook labels
   }] },  // occurrences only — no SRS fields here, see `cards` below
   cards: { [lemma]: {
     lemma, sourceLang, targetLang, translation, pos, gender, plural,
@@ -57,7 +66,19 @@ Request → response:
     reviewsPerSession
   },
   gameState: { streak, lastActiveDate, wordsReviewedToday, totalWordsReviewed, totalWordsSaved },
-  translationCache: { [hash]: { translation, sourceLang, targetLang, ts } }  // 7d TTL, capped
+  translationCache: { [hash]: { translation, sourceLang, targetLang, ts } },  // 7d TTL, capped
+  workbookNames: { [url]: string },  // user-chosen override for a workbook's display
+                                      // name (sidepanel.js's rename action) — same
+                                      // `url` keys as `vocab`; falls back to
+                                      // pdfTitle/pageTitle/hostname when absent
+  pdfAnnotations: { [sha256hex]: [{           // key has NO "pdf:" prefix — this bucket is PDF-only by construction
+    id, page,                                  // 1-based page number
+    rects: [{ x1, y1, x2, y2 }],                // PDF USER-SPACE points (scale=1), NOT css pixels —
+                                                 // converted via PDF.js's PageViewport#convertToPdfPoint/
+                                                 // convertToViewportPoint so highlights survive zoom/resize
+    color, note,                                // both optional
+    createdAt
+  }] }
 }
 ```
 
@@ -79,3 +100,5 @@ Leitner intervals: box 1→5 = 1d, 3d, 1w, 2w, 1m. Correct promotes, wrong drops
 - `cognates.json` — hand-curated English-French cognate map (not scripted — there's no reliable way to derive true cognates vs. false friends from frequency/POS data alone), `{ frenchWord: englishCognate }`
 
 `scripts/shard-writer.js` holds the shared `normalize()`/`shardKeyOf()`/`writeSharded()` build-time helpers (CommonJS, used by both build scripts). `background/conjugation.js` and `background/lexicon.js` each keep their own small runtime copy of `normalize`/`shardKeyOf` (different module system — ES modules in the service worker) — all copies must match exactly, or a word looks up a shard that was never built for it.
+
+`pdf-viewer/vendor/` is a vendored third-party library (Mozilla's PDF.js, Apache-2.0), not generated data — see `vendor/README.txt` for the exact release/files taken and how to upgrade. Only the display API (`pdf.mjs`/`pdf.worker.mjs`/`pdf_viewer.css`/`cmaps/`) is vendored, not Mozilla's own prebuilt viewer UI — `pdf-viewer/viewer.js` builds its own minimal page directly against the display API.

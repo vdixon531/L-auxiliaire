@@ -313,7 +313,10 @@ async function requestTranslation(text, bubble, contextSentence) {
 
 async function saveWord(entry) {
   try {
-    await chrome.runtime.sendMessage({ type: "SAVE_WORD", entry });
+    // pageTitle labels this page's workbook in the side panel's workbook
+    // list — same idea as pdf-viewer/viewer.js's pdfTitle for PDFs, just for
+    // regular web pages, which otherwise have nothing readable but the URL.
+    await chrome.runtime.sendMessage({ type: "SAVE_WORD", entry: { ...entry, pageTitle: document.title } });
     flashBubbleFeedback("Saved ✓");
   } catch (err) {
     console.error("[FLA] save failed", err);
