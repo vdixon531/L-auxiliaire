@@ -38,6 +38,37 @@ function labelForWorkbook(url, entries) {
   }
 }
 
+function renderWorkbookOverview(vocab, workbookNames) {
+  const list = $("vocabList");
+  const urls = Object.keys(vocab);
+  if (urls.length === 0) {
+    list.innerHTML = `<li class="empty">No saved words yet.</li>`;
+    return;
+  }
+
+  list.innerHTML = urls
+    .map((url) => {
+      const entries = vocab[url];
+      const label = workbookNames[url] || labelForWorkbook(url, entries);
+      const count = entries.length;
+      return `
+        <li class="workbook-overview-item" data-key="${escapeAttr(url)}">
+          <span class="workbook-overview-name">${escapeHtml(label)}</span>
+          <span class="workbook-overview-count">${count} word${count === 1 ? "" : "s"}</span>
+        </li>
+      `;
+    })
+    .join("");
+
+  list.querySelectorAll(".workbook-overview-item").forEach((el) => {
+    el.addEventListener("click", () => {
+      selectedWorkbook = el.dataset.key;
+      renderWorkbookSidebar();
+      renderVocab($("vocabSearch").value);
+    });
+  });
+}
+
 async function renderWorkbookSidebar() {
   const { vocab = {}, workbookNames = {} } = await chrome.storage.local.get(["vocab", "workbookNames"]);
 
@@ -84,8 +115,8 @@ function updateWorkbookHeader(vocab, workbookNames) {
 }
 
 async function deleteWorkbook(url) {
-  const { vocab = {}, cards = {}, workbookNames = {}, pdfAnnotations = {} } =
-    await chrome.storage.local.get(["vocab", "cards", "workbookNames", "pdfAnnotations"]);
+  const { vocab = {}, cards = {}, workbookNames = {} } =
+    await chrome.storage.local.get(["vocab", "cards", "workbookNames"]);
 
   const entryIds = new Set((vocab[url] || []).map((e) => e.id));
   delete vocab[url];
@@ -98,9 +129,8 @@ async function deleteWorkbook(url) {
   }
 
   delete workbookNames[url];
-  if (url.startsWith("pdf:")) delete pdfAnnotations[url.slice(4)];
 
-  await chrome.storage.local.set({ vocab, cards, workbookNames, pdfAnnotations });
+  await chrome.storage.local.set({ vocab, cards, workbookNames });
 }
 
 $("renameWorkbook").addEventListener("click", async () => {
@@ -136,6 +166,16 @@ $("deleteWorkbook").addEventListener("click", async () => {
 async function renderVocab(filter = "") {
   const { vocab = {}, workbookNames = {} } = await chrome.storage.local.get(["vocab", "workbookNames"]);
   updateWorkbookHeader(vocab, workbookNames);
+
+  // "All workbooks" with no active search shows the workbooks themselves —
+  // the sidebar already lists them, but repeating it here as the Vocab tab's
+  // default view means opening it lands on "browse your workbooks," not
+  // "wade through every word you've ever saved, across every source, in one
+  // long list." Typing a search still searches across everything (below).
+  if (!selectedWorkbook && !filter) {
+    renderWorkbookOverview(vocab, workbookNames);
+    return;
+  }
 
   const sourceEntries = selectedWorkbook ? vocab[selectedWorkbook] || [] : Object.values(vocab).flat();
   const list = $("vocabList");

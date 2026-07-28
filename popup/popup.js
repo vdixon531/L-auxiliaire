@@ -125,8 +125,10 @@ function showPdfError(msg) {
 
 async function openHandoffInViewer(arrayBuffer, filename) {
   const token = await putHandoff(arrayBuffer, filename);
+  // Mozilla's own vendored PDF.js viewer (pdf-viewer/vendor/web/viewer.html),
+  // not a custom page — see CLAUDE.md for why.
   await chrome.tabs.create({
-    url: chrome.runtime.getURL(`pdf-viewer/viewer.html?handoff=${token}`)
+    url: chrome.runtime.getURL(`pdf-viewer/vendor/web/viewer.html?handoff=${token}`)
   });
 }
 

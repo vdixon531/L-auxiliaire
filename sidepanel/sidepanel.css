@@ -148,6 +148,36 @@ body {
   border-color: #c62828;
 }
 
+.workbook-overview-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid #eee;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+
+.workbook-overview-item:hover {
+  background: #f5f5f5;
+  border-color: #ddd;
+}
+
+.workbook-overview-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbook-overview-count {
+  color: #999;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
 #vocabList {
   list-style: none;
   padding: 0;

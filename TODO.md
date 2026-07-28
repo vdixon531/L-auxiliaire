@@ -196,14 +196,14 @@ the full rationale.
 11. [x] Hands-on feedback round after the first real-browser test — three
         fixes:
         - Highlight rects merged per visual line before storing/drawing
-          (`mergeLineRects()`) — PDF.js's text layer emits one `<span>` per
-          text run, not per line, so a selected line could produce several
-          slightly-mismatched fragments instead of one clean bar.
+          (`mergeLineRects()`) — superseded shortly after by item 13 below
+          (switched to PDF.js's own native highlighter entirely, dropping
+          this custom code); kept in this log as a record of what was tried.
         - Side panel's Vocab tab now has a workbook sidebar (one workbook per
           saved page/PDF, plus "All workbooks"), with rename and
           delete-entire-workbook actions. `deleteWorkbook()` also cleans up
-          `cards`/`workbookNames`/`pdfAnnotations` for that workbook, not just
-          `vocab`. Regular web-page saves now capture `pageTitle`
+          `cards`/`workbookNames` for that workbook, not just `vocab`.
+          Regular web-page saves now capture `pageTitle`
           (`document.title`) the same way PDF saves capture `pdfTitle`, so
           workbook labels are readable instead of raw URLs.
         - Conjugation tab's "＋ Save to workbook" button was actually working
@@ -212,11 +212,37 @@ the full rationale.
 12. [x] Switched `pdf-viewer/viewer.js` from single-page-at-a-time to
         continuous scroll, per direct request — this was the biggest UX gap
         once someone actually tried reading a multi-page PDF with it.
-        Known limitation, not fully virtualized: rendered pages are never
-        torn back down as they scroll far away, so a very large document
-        (hundreds of pages) will accumulate memory over a long session —
-        acceptable for the realistic case, revisit only if it's a real
-        problem in practice.
+        **Superseded by item 13 below** — this hand-rolled continuous-scroll
+        rewrite turned out to have a real layout bug (pages rendered on top
+        of each other instead of stacking), so the whole custom render
+        pipeline was replaced rather than debugged further. Kept in this log
+        as a record of what was tried.
+13. [x] Replaced the hand-built PDF viewer entirely with Mozilla's own
+        prebuilt PDF.js reference viewer (`pdf-viewer/vendor/web/viewer.mjs`,
+        vendored whole — see `vendor/README.txt`), after the custom
+        continuous-scroll layout broke and the custom highlight overlay
+        stayed janky even after the line-merge fix. Both problems were
+        re-implementations of things the stock viewer already does
+        correctly — proper virtualized scroll/zoom, and a pixel-correct
+        native highlight annotation tool. `pdf-viewer/bridge.js` replaces
+        the old `pdf-viewer/viewer.js`: it only adds translate/save/
+        conjugate/workbook features and handoff-loading on top (via
+        `PDFViewerApplication`'s public API/event bus), touching nothing
+        about rendering. The custom `pdfAnnotations` storage and highlight-
+        overlay code (including the just-added `mergeLineRects()` fix) are
+        gone — dropped, not just unused, since PDF.js's own highlighter
+        replaces the feature outright. Trade-off accepted knowingly: the
+        viewer now looks like Mozilla's own full toolbar UI (find bar,
+        print, sidebar, etc.) instead of the slim custom one.
+        Still unvalidated in a real browser — same caveat every previous
+        PDF-viewer iteration had before its own hands-on pass.
+14. [x] Vocab tab's "All workbooks" selection used to show a flat dump of
+        every saved word across every workbook — same behavior as before
+        workbooks existed at all, just not what "All workbooks" should mean
+        once workbooks are a real concept. It now shows the list of
+        workbooks themselves (clickable to drill in), matching the sidebar;
+        typing a search still searches across every workbook's words, since
+        that's still useful.
 
 ## Later phases (defer until Phase 4 is done)
 

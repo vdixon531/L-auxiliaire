@@ -34,9 +34,14 @@ A Chrome extension for learning French while you browse. Translate on hover or s
 - Light gamification (opt-in): day streak, words reviewed today, no notifications
 
 **PDF support (Phase 4)**
-- Custom PDF viewer via PDF.js — same selection/hover behavior as web pages
+- PDF viewer is Mozilla's own PDF.js reference viewer (vendored, not hand-
+  built) — proper continuous scroll, zoom, find, and print all work because
+  they're upstream's proven code, not a custom re-implementation
+- Same translate on click/hover/select as web pages, layered on top via a
+  small bridge script
 - Per-PDF workbook keyed by content hash
-- Overlay annotations that persist across sessions
+- Highlighting uses PDF.js's own native highlight annotation tool, not a
+  custom feature
 - Manual-open only for now: a file picker in the popup, or a "reopen this PDF"
   button when Chrome's own viewer is already showing one — not an automatic
   takeover of every PDF you encounter (MV3 extensions can no longer silently
@@ -119,10 +124,15 @@ content/
 popup/                    — Toolbar icon popup — settings, color pickers, PDF entry points
 sidepanel/                — Vocab / Conjugation / Review / Progress tabs
 pdf-viewer/
-  viewer.html/.js         — Custom PDF viewer (manual-open only, see CLAUDE.md);
-                            ports content-script.js's interaction logic rather
-                            than sharing it (different script mechanisms)
-  vendor/                 — Vendored PDF.js display API (see vendor/README.txt)
+  bridge.js               — Layers translate/save/conjugate + handoff-loading
+                            onto the vendored viewer (manual-open only, see
+                            CLAUDE.md); ports content-script.js's interaction
+                            logic rather than sharing it (different script
+                            mechanisms)
+  vendor/                 — Mozilla's full PDF.js reference viewer, vendored
+                            whole (see vendor/README.txt) — not a custom-built
+                            viewer; two small edits to vendor/web/viewer.html
+                            wire bridge.js in
 data/
   verbs/<letter>.json     — conjugation tables, sharded by infinitive's first letter
   lemmas/<letter>.json    — conjugated form -> infinitive, sharded by its first letter

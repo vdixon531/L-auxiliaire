@@ -1,6 +1,74 @@
-// content-script.js
-// Runs on every page. Detects text selection + hover, injects a floating
-// translation bubble, and talks to the service worker for translations.
+// bridge.js
+// Bridges this extension's translate/save/conjugate/workbook features into
+// Mozilla's own prebuilt PDF.js viewer (pdf-viewer/vendor/web/viewer.mjs).
+//
+// Earlier versions of this file drove a hand-rolled render pipeline (single
+// page, then continuous-scroll) and a custom highlight-overlay annotation
+// feature — both had real bugs (layout jankiness, misaligned highlights) that
+// came from re-implementing things PDF.js's own reference viewer already
+// does correctly: continuous scroll with proper virtualization, zoom, and a
+// pixel-correct native highlight annotation tool. Switched to using that
+// viewer directly rather than continuing to debug a hand-rolled one; this
+// file now only adds our own features on top via the DOM/its event bus,
+// nothing about rendering pages.
+
+import { takeHandoff } from "../lib/pdf-handoff.js";
+
+// Must run before PDFViewerApplication.run() reads defaultUrl — "webviewerloaded"
+// fires synchronously right before run() is called (see vendor/web/viewer.mjs's
+// webViewerLoad()). Without this, the stock build falls back to opening its
+// bundled sample PDF (compressed.tracemonkey-pldi-09.pdf) when no ?file= is
+// present, which we deliberately didn't vendor — we always load via the
+// handoff token instead (see loadHandoff() below).
+document.addEventListener("webviewerloaded", () => {
+  window.PDFViewerApplicationOptions.set("defaultUrl", "");
+});
+
+const pdfState = {
+  pdfUrl: null, // "pdf:<sha256hex>" — the vocab/cards key for this document
+  docTitle: ""
+};
+
+async function hashToPdfUrl(arrayBuffer) {
+  const digest = await crypto.subtle.digest("SHA-256", arrayBuffer);
+  const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  return `pdf:${hex}`;
+}
+
+async function loadHandoff() {
+  const token = new URLSearchParams(location.search).get("handoff");
+  if (!token) return; // opened with no handoff — PDF.js's own "Open File" toolbar button still works
+
+  const handoff = await takeHandoff(token);
+  if (!handoff) {
+    console.error("[FLA pdf-viewer] handoff missing or expired:", token);
+    return;
+  }
+
+  pdfState.docTitle = handoff.filename || "PDF document";
+  pdfState.pdfUrl = await hashToPdfUrl(handoff.arrayBuffer);
+  document.title = `${pdfState.docTitle} — L'auxiliaire`;
+
+  await window.PDFViewerApplication.initializedPromise;
+  await window.PDFViewerApplication.open({
+    data: new Uint8Array(handoff.arrayBuffer),
+    filename: pdfState.docTitle
+  });
+}
+
+loadHandoff();
+
+// -----------------------------
+// Translate/save/conjugate interaction — ported from content/content-script.js
+// (not imported: that file is a classic script for <all_urls> content-script
+// injection, a different mechanism from this ES-module extension page).
+// Attaches at the document level, so it works against whatever PDF.js's own
+// viewer renders (its text-layer spans are the same underlying technique
+// content-script.js already handles) without needing to know anything about
+// the viewer's internal page/scroll/zoom machinery. Behavior is identical to
+// the web-page version: click-to-translate is always on, hover-dwell is
+// optional/additive, selection always translates the whole selection.
+// -----------------------------
 
 const BUBBLE_ID = "fla-bubble";
 const HOVER_DEBOUNCE_MS = 400;
@@ -8,20 +76,15 @@ const HOVER_DEBOUNCE_MS = 400;
 let hoverModeEnabled = false;
 let currentBubble = null;
 let hoverTimer = null;
-let isMouseDown = false; // suppresses the hover-dwell popup while a drag-selection is in progress
+let isMouseDown = false;
 
-// Elements a stray click/hover shouldn't hijack — normal page interaction
-// (nav links, buttons, form fields) takes priority over translate-on-click.
-const INTERACTIVE_SELECTOR =
-  "a, button, input, textarea, select, label, [role='button'], [contenteditable], [contenteditable='true']";
+// PDF.js's own toolbar is full of buttons/inputs — already covered by this
+// selector, so clicking any of its controls won't also trigger translate-on-click.
+const INTERACTIVE_SELECTOR = "a, button, input, textarea, select, label, [role='button'], [contenteditable], [contenteditable='true']";
 
 function isInteractiveTarget(el) {
   return !!(el && el.closest && el.closest(INTERACTIVE_SELECTOR));
 }
-
-// -----------------------------
-// Bubble UI
-// -----------------------------
 
 function removeBubble() {
   if (currentBubble) {
@@ -37,9 +100,7 @@ function createBubble(x, y) {
   bubble.className = "fla-bubble";
   bubble.style.left = `${x}px`;
   bubble.style.top = `${y}px`;
-  bubble.innerHTML = `
-    <div class="fla-loading">Translating…</div>
-  `;
+  bubble.innerHTML = `<div class="fla-loading">Translating…</div>`;
   document.body.appendChild(bubble);
   currentBubble = bubble;
   return bubble;
@@ -64,10 +125,8 @@ function renderBubble(bubble, { source, translation, sourceLang, targetLang }, c
     </div>
   `;
 
-  bubble.querySelector('[data-action="speak-source"]').onclick = () =>
-    speak(source, sourceLang);
-  bubble.querySelector('[data-action="speak-target"]').onclick = () =>
-    speak(translation, targetLang);
+  bubble.querySelector('[data-action="speak-source"]').onclick = () => speak(source, sourceLang);
+  bubble.querySelector('[data-action="speak-target"]').onclick = () => speak(translation, targetLang);
   bubble.querySelector('[data-action="save"]').onclick = () =>
     saveWord({ source, translation, sourceLang, targetLang, contextSentence });
   bubble.querySelector('[data-action="conjugate"]').onclick = () =>
@@ -84,24 +143,22 @@ function escapeHtml(str) {
     .replace(/"/g, "&quot;");
 }
 
-// -----------------------------
-// TTS
-// -----------------------------
-
 function speak(text, langCode) {
-  // langCode is 'fr' or 'en' — normalize to BCP-47
   const lang = langCode === "fr" ? "fr-FR" : "en-US";
   const utter = new SpeechSynthesisUtterance(text);
   utter.lang = lang;
-  utter.rate = 0.9; // slightly slower is better for learners
+  utter.rate = 0.9;
   window.speechSynthesis.cancel();
   window.speechSynthesis.speak(utter);
 }
 
-// -----------------------------
-// Context sentence extraction
-// -----------------------------
-
+// PDF.js's text layer has no P/DIV paragraph structure — each line is a
+// <span> directly inside a page's .textLayer div, and .textLayer itself IS a
+// DIV, so this walk stops there, treating the whole page as one sentence-
+// extraction container (BOUNDARY-based trimming below still finds a
+// reasonable local sentence within it). Coarser than the web-page version's
+// per-paragraph granularity, but a reasonable tradeoff — PDF text runs don't
+// reliably map to real paragraph boundaries anyway.
 const BLOCK_TAGS = new Set([
   "P", "DIV", "LI", "TD", "TH", "H1", "H2", "H3", "H4", "H5", "H6",
   "ARTICLE", "SECTION", "BLOCKQUOTE", "FIGCAPTION", "PRE"
@@ -116,8 +173,6 @@ function findBlockAncestor(node) {
   return (node.nodeType === Node.TEXT_NODE ? node.parentElement : node) || document.body;
 }
 
-// Range coordinates are per-text-node; walk the container's text nodes to
-// translate them into offsets within the container's flattened text.
 function rangeOffsetsInContainer(range, container) {
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
   let offset = 0;
@@ -157,10 +212,6 @@ function getContextSentence(range) {
   return text.slice(sentStart, sentEnd).trim();
 }
 
-// -----------------------------
-// Selection handling
-// -----------------------------
-
 function getSelectionText() {
   const sel = window.getSelection();
   if (!sel || sel.rangeCount === 0) return null;
@@ -171,10 +222,6 @@ function getSelectionText() {
   return { text, rect, range };
 }
 
-// A selection stays highlighted on the page (and its translation bubble
-// stays up) until the user clicks elsewhere to collapse it — hover mode
-// must not steal that bubble out from under them just because the cursor
-// happens to drift over some other word in the meantime.
 function hasActiveSelection() {
   const sel = window.getSelection();
   return !!sel && !sel.isCollapsed && sel.toString().trim().length > 0;
@@ -186,7 +233,6 @@ document.addEventListener("mousedown", () => {
 
 document.addEventListener("mouseup", async (e) => {
   isMouseDown = false;
-  // Ignore clicks inside our own bubble
   if (currentBubble && currentBubble.contains(e.target)) return;
 
   const sel = getSelectionText();
@@ -200,9 +246,6 @@ document.addEventListener("mouseup", async (e) => {
   }
 
   removeBubble();
-
-  // Click-to-translate a single word is always available — hover mode (below)
-  // is purely additive on top of it, not an alternative.
   if (isInteractiveTarget(e.target)) return;
 
   const word = getWordAtPoint(e.clientX, e.clientY);
@@ -215,26 +258,15 @@ document.addEventListener("mouseup", async (e) => {
   await requestTranslation(word.text, bubble, contextSentence);
 });
 
-// -----------------------------
-// Hover mode (dwell-to-reveal) — optional, additive on top of click-to-translate
-// -----------------------------
-
 document.addEventListener("mousemove", (e) => {
   if (!hoverModeEnabled) return;
   clearTimeout(hoverTimer);
-  // A drag-selection in progress fires mousemove continuously too — without
-  // this guard, the dwell timer would keep popping up single-word bubbles
-  // over whatever word the cursor passes, fighting with the multi-word
-  // selection the user is trying to make.
   if (isMouseDown) return;
-  // A completed selection stays highlighted (and its own bubble stays up)
-  // until the user clicks elsewhere — don't replace it just because the
-  // cursor drifted over another word afterward.
   if (hasActiveSelection()) return;
 
   hoverTimer = setTimeout(async () => {
-    if (isMouseDown) return; // drag may have started during the debounce window
-    if (hasActiveSelection()) return; // selection may have been made during the debounce window
+    if (isMouseDown) return;
+    if (hasActiveSelection()) return;
     if (isInteractiveTarget(e.target)) return;
     const word = getWordAtPoint(e.clientX, e.clientY);
     if (!word || !word.text) return;
@@ -248,9 +280,7 @@ document.addEventListener("mousemove", (e) => {
 });
 
 function getWordAtPoint(x, y) {
-  const range = document.caretRangeFromPoint
-    ? document.caretRangeFromPoint(x, y)
-    : null;
+  const range = document.caretRangeFromPoint ? document.caretRangeFromPoint(x, y) : null;
   if (!range) return null;
   const node = range.startContainer;
   if (node.nodeType !== Node.TEXT_NODE) return null;
@@ -258,7 +288,6 @@ function getWordAtPoint(x, y) {
   const text = node.textContent;
   const offset = range.startOffset;
 
-  // Expand outward to word boundaries (Unicode-aware for accents)
   const wordRegex = /[\p{L}\p{M}'\-]/u;
   let start = offset;
   let end = offset;
@@ -272,32 +301,18 @@ function getWordAtPoint(x, y) {
   wordRange.setEnd(node, end);
 
   // caretRangeFromPoint snaps to the NEAREST caret position even when (x, y)
-  // isn't actually over any text — over an image, a margin, empty space
-  // beside a short line, etc. — which otherwise makes hover/click "reach"
-  // for whatever word happens to be closest. Reject unless the point truly
-  // falls inside the resolved word's own rect(s) (checking every line rect,
-  // not just the bounding box, since a wrapped word's bounding box can span
-  // a gap that isn't actually part of the word on either line).
+  // isn't actually over any text — reject unless the point truly falls
+  // inside the resolved word's own rect(s).
   const rects = wordRange.getClientRects();
-  const inside = [...rects].some(
-    (r) => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom
-  );
+  const inside = [...rects].some((r) => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom);
   if (!inside) return null;
 
   return { text: wordText, rect: wordRange.getBoundingClientRect(), range: wordRange };
 }
 
-// -----------------------------
-// Service worker messaging
-// -----------------------------
-
 async function requestTranslation(text, bubble, contextSentence) {
   try {
-    const resp = await chrome.runtime.sendMessage({
-      type: "TRANSLATE",
-      text,
-      contextSentence
-    });
+    const resp = await chrome.runtime.sendMessage({ type: "TRANSLATE", text, contextSentence });
     if (resp?.error) {
       bubble.innerHTML = `<div class="fla-error">${escapeHtml(resp.error)}</div>`;
       return null;
@@ -306,20 +321,25 @@ async function requestTranslation(text, bubble, contextSentence) {
     return resp;
   } catch (err) {
     bubble.innerHTML = `<div class="fla-error">Translation failed</div>`;
-    console.error("[FLA]", err);
+    console.error("[FLA pdf-viewer]", err);
     return null;
   }
 }
 
+// Stamps the content-hash key + a human-readable title onto every save, so
+// this PDF's words land in vocab["pdf:<hash>"]/cards regardless of which tab
+// URL happens to be showing (viewer.html?handoff=...) — service-worker.js's
+// SAVE_WORD handler respects an explicit entry.url instead of overwriting it
+// with sender.tab.url specifically so this works.
 async function saveWord(entry) {
   try {
-    // pageTitle labels this page's workbook in the side panel's workbook
-    // list — same idea as pdf-viewer/bridge.js's pdfTitle for PDFs, just for
-    // regular web pages, which otherwise have nothing readable but the URL.
-    await chrome.runtime.sendMessage({ type: "SAVE_WORD", entry: { ...entry, pageTitle: document.title } });
+    await chrome.runtime.sendMessage({
+      type: "SAVE_WORD",
+      entry: { ...entry, url: pdfState.pdfUrl, pdfTitle: pdfState.docTitle }
+    });
     flashBubbleFeedback("Saved ✓");
   } catch (err) {
-    console.error("[FLA] save failed", err);
+    console.error("[FLA pdf-viewer] save failed", err);
   }
 }
 
@@ -344,15 +364,11 @@ async function handleSaveSelectionShortcut() {
 }
 
 async function requestConjugation(verb) {
-  const resp = await chrome.runtime.sendMessage({
-    type: "CONJUGATE",
-    verb
-  });
+  const resp = await chrome.runtime.sendMessage({ type: "CONJUGATE", verb });
   if (resp?.error) {
     flashBubbleFeedback(resp.error);
     return;
   }
-  // Open side panel to show the table
   await chrome.runtime.sendMessage({ type: "OPEN_SIDEPANEL", view: "conjugation", verb });
 }
 
@@ -365,10 +381,6 @@ function flashBubbleFeedback(msg) {
   setTimeout(() => flash.remove(), 1500);
 }
 
-// -----------------------------
-// Toggles from popup / commands
-// -----------------------------
-
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === "SET_HOVER_MODE") {
     hoverModeEnabled = !!msg.enabled;
@@ -376,8 +388,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     sendResponse({ ok: true });
   }
   if (msg.type === "TRANSLATE_STATUS") {
-    // One-time notice while Chrome downloads the on-device language pack —
-    // otherwise the bubble just sits on "Translating…" with no feedback.
     if (currentBubble && msg.status === "downloading") {
       currentBubble.innerHTML = `<div class="fla-loading">Downloading language pack (one-time)…</div>`;
     }
@@ -393,7 +403,15 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
 });
 
-// Load initial mode state
+// Initial state, plus live cross-tab reactivity (this tab might not be
+// active when the user toggles hover mode from the popup/Alt+T — annotator.js
+// established this chrome.storage.onChanged pattern in Phase 2 for exactly
+// this kind of per-tab setting that shouldn't require the tab to be focused).
 chrome.storage.local.get("config").then(({ config = {} }) => {
   hoverModeEnabled = !!config.hoverModeEnabled;
+});
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes.config) {
+    hoverModeEnabled = !!changes.config.newValue?.hoverModeEnabled;
+  }
 });
