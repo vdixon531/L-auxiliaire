@@ -48,8 +48,26 @@ A Chrome extension for learning French while you browse. Translate on hover or s
   register as the default PDF handler; auto-interception would need
   `declarativeNetRequest` + broad host permissions, deliberately deferred)
 
+**Conversation practice (Phase 5)**
+- Select a dialogue on any page (🎙 Practice on the selection bubble, or the
+  popup's "Practice selected text") or paste one into the Practice tab
+- All-French dialogues: the app reads its lines aloud, you read yours into the
+  mic — speech checked word-by-word against the text
+- Mixed French/English dialogues: the app reads the French lines; you say each
+  English line in French, checked (leniently) against a reference translation
+- All-English dialogues: every line is yours to say in French, with the model
+  answer revealed only after your attempt
+- A live mic level meter while listening, and words that light up as they're
+  recognised; the turn ends when you stop talking, not at your first word
+- Scored on pronunciation, not spelling — "parler"/"parlé"/"parlez" all count
+  as the same thing said out loud
+- Wrong turns get a color-coded word diff with listen (normal or slow) / retry
+  / skip; sessions end with an overall score, a repeated-mistakes list, and
+  playback of every line
+- Requires a one-time microphone grant (a page the extension opens for you);
+  speech recognition is Chrome-only
+
 **Stretch goals**
-- Voice input pronunciation practice
 - YouTube subtitle overlay with clickable words
 - Wiktionary definitions in save flow
 - Notion sync
@@ -139,9 +157,16 @@ data/
   lexicon/<letter>.json   — surface form -> {lemma,pos,gender,number,freqRank}, same sharding
   cognates.json           — hand-curated English-French cognate map
 lib/
-  fuzzy-match.js          — Levenshtein for review + pronunciation
+  fuzzy-match.js          — Levenshtein similarity + LCS word alignment, plus
+                            French phonetic folding and the pronunciation
+                            scorer conversation practice grades attempts with
   normalize-url.js        — Canonicalizes URLs used as vocab keys
+  practice-panel.js       — Conversation-practice session state machine
+                            (side panel Practice tab)
   pdf-handoff.js          — IndexedDB handoff of picked/fetched PDF bytes to pdf-viewer/
+permission/
+  grant-mic.html/.js      — One-time mic grant page (the side panel can't show
+                            Chrome's mic prompt itself)
 ```
 
 ## Storage

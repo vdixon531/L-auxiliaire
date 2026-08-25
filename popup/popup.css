@@ -53,6 +53,19 @@ button {
   font-size: 13px;
 }
 button:hover { background: #3d7fcc; }
+button:disabled, button:disabled:hover {
+  background: #d7d7d7;
+  border-color: #d7d7d7;
+  color: #fff;
+  cursor: default;
+}
+/* Echoes back the selection the Practice button would send, so the user can
+   see they grabbed the right passage before the panel opens. */
+#practiceSelectionHint {
+  border-top: none;
+  padding-top: 6px;
+  font-style: italic;
+}
 .hint {
   font-size: 10px;
   color: #999;

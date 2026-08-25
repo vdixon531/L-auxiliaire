@@ -243,6 +243,181 @@ the full rationale.
         workbooks themselves (clickable to drill in), matching the sidebar;
         typing a search still searches across every workbook's words, since
         that's still useful.
+        **Reverted by item 15 below** — kept in this log as a record of what
+        was tried.
+15. [x] Reverted item 14: the workbook-overview screen (list of workbooks,
+        clickable to drill in) is gone, and the sidebar's top entry is back
+        to a flat dump of every saved word across every workbook, per direct
+        request. Renamed that entry from "All workbooks" to "All Words" —
+        individual per-page/PDF workbooks in the sidebar are unaffected.
+16. [x] Two fixes: (1) `#workbookHeader`'s `hidden` attribute was losing to
+        `.workbook-header { display: flex }` on specificity — same-specificity
+        class rule beats the UA `[hidden]` rule when it comes later in the
+        cascade — so the workbook name/rename/delete buttons stayed visible
+        after switching to "All Words". Added an explicit
+        `.workbook-header[hidden] { display: none }` override.
+        (2) Added a Settings tab (⚙) to the side panel, showing the same
+        toggles as the popup (hover mode, slow speech, color coding,
+        frequency dimming, cognate highlighting, reading level). Extracted
+        the shared logic into `lib/settings-panel.js` rather than duplicating
+        it, since popup and side panel are both regular extension pages that
+        can import a real module (see CLAUDE.md). PDF-open and "Open
+        workbook" stayed popup-only — they're actions, not settings, and
+        don't make sense from inside the panel they'd open.
+
+## Phase 5 tasks (Conversation Practice — built ahead of the still-deferred Phase 3, per direct request)
+
+Code is written but **nothing below has been validated in a real browser yet**
+— same caveat every previous phase had before its own hands-on pass. The
+whole feature gates on item 1 (the mic/recognition spike): nothing in this
+repo had ever used `webkitSpeechRecognition` before, and Chrome extension
+pages have a history of `not-allowed`/`network` errors with it.
+
+1. [ ] **Spike / first hands-on check**: load unpacked → side panel → DevTools
+       on the panel → run a throwaway snippet
+       (`const r=new webkitSpeechRecognition(); r.lang="fr-FR"; r.onresult=e=>console.log(e.results); r.onerror=e=>console.log("ERR",e.error); r.start();`)
+       — expect `not-allowed` before granting. Open
+       `chrome-extension://<id>/permission/grant-mic.html`, grant, re-run the
+       snippet, speak French, confirm a transcript arrives inside the panel.
+       **Contingency if it still fails**: re-host the practice UI in a
+       dedicated extension tab (`practice-panel.js` is a plain module wired to
+       DOM ids, so relocation is re-hosting, not a rewrite).
+2. [x] `lib/fuzzy-match.js`: added `alignWords()` (LCS alignment + backtrace)
+       additively beside the old positional `wordDiff()` — one inserted/
+       dropped word no longer desyncs every word after it.
+3. [x] `lib/practice-panel.js` — full session state machine: line parsing
+       (speaker-tag/dash stripping, sentence-split fallback), per-line
+       classification via one `TRANSLATE` each (sourceLang → fr/en chip,
+       translation → Mode B reference / display gloss), Mode A (all-French,
+       alternating read-aloud turns, swap-roles toggle) vs Mode B (mixed,
+       user translates English lines into spoken French), listen/retry/skip
+       on failed turns, pause-on-tab-switch with resume, end-of-session
+       summary (per-line best %, overall %, repeated mistakes at 2+ misses).
+       Pass thresholds — A ≥ 0.75, B ≥ 0.55 (lenient because the machine
+       translation is only one valid rendering; shown as "suggested
+       translation") — are **first guesses, uncalibrated** until tested.
+4. [x] `permission/grant-mic.html`/`.js` — one-time mic grant page (no
+       manifest change; `audioCapture` is Chrome-Apps-only, deliberately not
+       added).
+5. [x] Side panel wiring: Practice tab UI replaces the stub; `sidepanelIntent`
+       now also consumed via `chrome.storage.onChanged` (fixes the
+       already-open-panel gap — previously a second OPEN_SIDEPANEL wrote an
+       intent nothing ever read), deduped by intent `at`; `speak()` finally
+       honors `config.slowSpeech` (pre-existing bug: the setting existed in
+       schema + settings UI but every speak() hardcoded rate 0.9 —
+       content-script.js/bridge.js copies still do, left for a later pass).
+6. [x] 🎙 Practice button on the selection bubble in **both** copies
+       (content-script.js + bridge.js), shown only for multi-line or
+       multi-sentence selections; sends `OPEN_SIDEPANEL {view:"practice",
+       text}` (additive `text` field on the existing intent).
+7. [ ] Hands-on pass (after item 1 passes):
+       - [ ] Paste path, Mode A: 6-line French dialogue → app reads line 1
+             (slowSpeech respected when toggled), correct reading of line 2
+             passes at ≥0.75; deliberately insert an extra word mid-sentence
+             and confirm the diff does NOT redline everything after it.
+       - [ ] Mode B: alternating fr/en → a differently-phrased-but-correct
+             French answer still passes at 0.55.
+       - [ ] Selection path with panel closed → opens on Practice with text;
+             single-word bubbles show no 🎙 button.
+       - [ ] Selection path with panel already open on Vocab → switches and
+             loads (the onChanged fix).
+       - [ ] Fail/retry/skip loop; miss the same word twice → it appears
+             under repeated mistakes; overall % sane.
+       - [ ] Stop mid-turn: TTS halts, recognition aborts, new session works.
+       - [ ] Revoke mic in site settings mid-session → next turn surfaces the
+             grant button rather than hanging.
+       - [ ] Silent for ~12s on an armed mic → "didn't catch that" + retry,
+             no hang.
+       - [ ] PDF selection: 🎙 appears; note (don't fix) how the per-visual-
+             line `\n`s split sentences; confirm the textarea path is a
+             workable fallback.
+8. [x] Tune the pass thresholds + French ASR tolerance once real attempts
+       have been scored — done in the first feedback round (item 10 below);
+       scoring moved off raw character-Levenshtein onto a phonetic scorer.
+9. [ ] v1.1 candidates, deliberately deferred: per-line language override on
+       the ready screen (needs an additive forced-`sourceLang` field on
+       `TRANSLATE`), semantic/multi-reference scoring for Mode B, practice
+       stats persistence (`practiceStats`) once Phase 3's review data lands.
+10. [x] **First hands-on feedback round** (mic worked once the right input
+        device was selected — item 1's spike effectively passed). Five fixes:
+        - **Popup → practice with the page selection.** New `GET_SELECTION`
+          message, answered by both `content/content-script.js` and
+          `pdf-viewer/bridge.js`; a "🎙 Practice selected text" button in the
+          popup writes `sidepanelIntent` and opens the panel itself (the
+          existing `OPEN_SIDEPANEL` handler keys off `sender.tab`, which a
+          popup doesn't have). Both listeners stay silent when they hold no
+          selection, so an empty iframe / background PDF tab can't win the
+          response race with "".
+        - **Live mic level meter** (`#practiceWave`) while listening — a
+          second, parallel `getUserMedia` stream feeding an AnalyserNode,
+          purely so the user can see audio arriving. Recognition itself gives
+          no signal until it has decoded words, which is exactly why a
+          wrong input device was indistinguishable from silence. Also warns
+          after 2.5s of no signal, naming the input device as the suspect.
+        - **Recognition is now `continuous`.** It was ending at Chrome's
+          first final result, i.e. scoring a whole line on its opening word.
+          The turn now ends on 1.8s of silence, a ✓ Done button, or a 30s
+          cap, and words light up as they're recognised (Mode A only —
+          highlighting the reference on a Mode B translate-turn would hand
+          the user the answer).
+        - **Pronunciation-aware scoring** — feedback was far too harsh
+          because character-Levenshtein punishes spellings French pronounces
+          identically. `fuzzy-match.js` gained `phoneticKey()` (French
+          grapheme→sound folding) and `pronunciationScore()` (word-level edit
+          distance: cheap insertions, full-price deletions, partial credit
+          only above a floor). "parler"/"parlé"/"parlez" now score 1.00
+          where they scored 0.83; a genuinely wrong content word still fails.
+          Thresholds rescaled with it: A 0.75 → 0.78, B unchanged at 0.55.
+        - **Mic grant is a modal gate**, not a permanent button parked under
+          the controls — shown on entering Practice without permission, and
+          re-raised (overriding "Not now") on a real `not-allowed` error.
+11. [x] **Second feedback round** — four fixes, one item deferred to discussion:
+        - Hover dwell 400ms → 900ms. At 400 a cursor crossing a paragraph
+          strobed a bubble over every word it passed.
+        - Playback of the model French from the feedback: a 🐢 Slowly button
+          (rate 0.5, slower than `config.slowSpeech`'s 0.7) beside the
+          existing 🔊 Listen on a miss, a ▶ on every summary row, and a ▶ on
+          the revealed answer of a resolved translate turn. `speakAsync()`
+          took an optional `rate` override for this.
+        - **Mode C** (all-English dialogue → user speaks every line in
+          French). Falls out of Mode B's design almost entirely: with no
+          French lines there are no app turns, so every line is a translate
+          turn. Added `isTranslateTurn()` as the one place that asks "must
+          the user produce French here", replacing the scattered
+          `mode === "B" && lang === "en"` checks.
+        - Bubble sizing/placement: `placeBubble()` re-measures after every
+          content swap and moves the bubble beside a tall selection;
+          `max-height: 60vh` + internal scroll caps it regardless. Passage
+          selections (4+ segments) now defer translation behind a 🌐
+          Translate button, so grabbing a long dialogue for Practice no
+          longer buries the screen in translated text.
+
+## Stretch goals (tabled — designed, not scheduled)
+
+- **Conjugation in full sentences.** Show the user's context sentence
+  re-conjugated for each person, not just the bare verb table. Discussed and
+  deliberately tabled. Three options were weighed:
+  1. *Pure substitution* — find the conjugated form in the sentence (we have
+     every form already) and swap it plus the subject pronoun. Free, offline,
+     instant; but wrong on elision (`je` → `j'`), reflexives (`je me lave` →
+     `tu te laves`), possessives (`avec mes amis` → `tes amis`), and
+     non-pronoun subjects (`Marie parle…` — nothing to swap).
+  2. *Chrome's Prompt API* (`LanguageModel`) — one call per sentence, reusing
+     the offscreen-document plumbing `Translator` already needs. Handles the
+     hard cases; costs a flag/origin-trial-gated dependency, 1–3s latency, and
+     it's generative, so it can quietly rewrite the input.
+  3. *Hybrid, recommended* — do (1), but only offer the sentence view when the
+     shape is provable: recognised subject pronoun immediately before the
+     verb, simple tense, not reflexive. Otherwise show the bare table with no
+     sentence toggle. Never displays wrong French; sometimes declines.
+  **Hard data constraint**: verb entries carry only `template` and `tenses` —
+  there is **no auxiliary field**, so passé composé can't be built (avoir vs
+  être unknown) let alone agreed (`elle est allée`). Any v1 is limited to
+  présent / imparfait / futur / conditionnel until `scripts/build-verbiste.js`
+  is extended to emit the auxiliary.
+  **Prerequisite**: the Conjugate button sends `OPEN_SIDEPANEL {view:
+  "conjugation", verb}` with no sentence — needs an additive
+  `contextSentence` field on that intent.
 
 ## Later phases (defer until Phase 4 is done)
 

@@ -14,6 +14,21 @@
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 14px;
   line-height: 1.4;
+  /* A long selection's translation must never grow the bubble past the
+     viewport — content scrolls inside it instead, so the action buttons at
+     the bottom stay reachable. placeBubble() handles where it sits. */
+  max-height: 60vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Untranslated source text in the deferred (passage) bubble — a preview, so
+   it gets its own scroll rather than pushing the buttons out of view. */
+.fla-bubble .fla-preview {
+  max-height: 7.5em;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  font-size: 13px;
 }
 
 .fla-bubble .fla-row {

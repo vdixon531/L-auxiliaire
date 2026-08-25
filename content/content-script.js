@@ -3,7 +3,14 @@
 // translation bubble, and talks to the service worker for translations.
 
 const BUBBLE_ID = "fla-bubble";
-const HOVER_DEBOUNCE_MS = 400;
+// Long enough that sweeping the cursor across a paragraph doesn't strobe a
+// bubble over every word it passes — dwell should feel deliberate.
+const HOVER_DEBOUNCE_MS = 900;
+const BUBBLE_MARGIN = 8;
+// At/above this many lines-or-sentences, a selection is a passage rather than
+// a phrase: translating it on sight produces a wall of text the user usually
+// didn't ask for, so it waits behind a Translate button instead.
+const DEFER_TRANSLATE_SEGMENTS = 4;
 
 let hoverModeEnabled = false;
 let currentBubble = null;
@@ -30,22 +37,81 @@ function removeBubble() {
   }
 }
 
-function createBubble(x, y) {
+// `rect` is the viewport-relative box of the word/selection the bubble
+// describes. It's kept on the element because the bubble is re-measured and
+// re-placed after every content swap — a translation is a very different size
+// from "Translating…", and a paragraph's translation is different again.
+function createBubble(rect) {
   removeBubble();
   const bubble = document.createElement("div");
   bubble.id = BUBBLE_ID;
   bubble.className = "fla-bubble";
-  bubble.style.left = `${x}px`;
-  bubble.style.top = `${y}px`;
   bubble.innerHTML = `
     <div class="fla-loading">Translating…</div>
   `;
   document.body.appendChild(bubble);
   currentBubble = bubble;
+  bubble._rect = rect;
+  placeBubble(bubble);
   return bubble;
 }
 
+// Below the selection is the natural spot, but a multi-line selection often
+// leaves no room there — the bubble would hang off the bottom of the screen
+// with its buttons out of reach. So when the anchor is tall (or the space
+// under it is thin), the bubble goes beside the text instead, on whichever
+// side has room, and everything is clamped into the viewport as a last resort.
+function placeBubble(bubble) {
+  const rect = bubble._rect;
+  if (!rect) return;
+  const bw = bubble.offsetWidth;
+  const bh = bubble.offsetHeight;
+  const vw = document.documentElement.clientWidth;
+  const vh = document.documentElement.clientHeight;
+
+  const spaceRight = vw - rect.right;
+  const spaceLeft = rect.left;
+  const spaceBelow = vh - rect.bottom;
+  const beside =
+    (rect.height > vh * 0.3 || spaceBelow < Math.min(bh, 140)) &&
+    Math.max(spaceRight, spaceLeft) >= bw + BUBBLE_MARGIN * 2;
+
+  let left;
+  let top;
+  if (beside) {
+    left = spaceRight >= spaceLeft ? rect.right + BUBBLE_MARGIN : rect.left - bw - BUBBLE_MARGIN;
+    top = rect.top;
+  } else {
+    left = rect.left;
+    top = rect.bottom + BUBBLE_MARGIN;
+    if (top + bh > vh - BUBBLE_MARGIN) {
+      const above = rect.top - bh - BUBBLE_MARGIN;
+      if (above >= BUBBLE_MARGIN) top = above;
+    }
+  }
+  left = Math.min(Math.max(BUBBLE_MARGIN, left), Math.max(BUBBLE_MARGIN, vw - bw - BUBBLE_MARGIN));
+  top = Math.min(Math.max(BUBBLE_MARGIN, top), Math.max(BUBBLE_MARGIN, vh - bh - BUBBLE_MARGIN));
+
+  bubble.style.left = `${window.scrollX + left}px`;
+  bubble.style.top = `${window.scrollY + top}px`;
+}
+
+// How many dialogue lines / sentences a selection breaks into — mirrors
+// practice-panel.js's own parsing (newlines first, sentences as fallback) so
+// this count matches the number of turns Practice would actually produce.
+function segmentCount(text) {
+  const lines = String(text || "").split(/\n+/).map((s) => s.trim()).filter(Boolean);
+  if (lines.length > 1) return lines.length;
+  return String(text || "")
+    .split(/(?<=[.!?…])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean).length;
+}
+
 function renderBubble(bubble, { source, translation, sourceLang, targetLang }, contextSentence) {
+  // Multi-line or multi-sentence selections can be practiced as a dialogue in
+  // the side panel; single-word click bubbles stay uncluttered.
+  const canPractice = source.includes("\n") || /[.!?…]\s+\S/.test(source);
   bubble.innerHTML = `
     <div class="fla-row">
       <span class="fla-lang">${sourceLang}</span>
@@ -61,6 +127,7 @@ function renderBubble(bubble, { source, translation, sourceLang, targetLang }, c
       <button class="fla-btn fla-save" data-action="save">＋ Save</button>
       <button class="fla-btn fla-conj" data-action="conjugate">Conjugate</button>
       <button class="fla-btn fla-workbook" data-action="workbook" title="Open workbook">📖 Workbook</button>
+      ${canPractice ? `<button class="fla-btn fla-practice" data-action="practice" title="Practice this dialogue aloud">🎙 Practice</button>` : ""}
     </div>
   `;
 
@@ -74,6 +141,48 @@ function renderBubble(bubble, { source, translation, sourceLang, targetLang }, c
     requestConjugation(sourceLang === "fr" ? source : translation);
   bubble.querySelector('[data-action="workbook"]').onclick = () =>
     chrome.runtime.sendMessage({ type: "OPEN_SIDEPANEL", view: "vocab" });
+  const practiceBtn = bubble.querySelector('[data-action="practice"]');
+  if (practiceBtn) {
+    practiceBtn.onclick = () =>
+      chrome.runtime.sendMessage({ type: "OPEN_SIDEPANEL", view: "practice", text: source });
+  }
+  placeBubble(bubble);
+}
+
+// The passage-length case: show what was selected and what can be done with
+// it, but don't spend a translation (or the screen space) until asked. The
+// Translate button exists ONLY here — once translated, the bubble renders as
+// any other, with no lingering button.
+function renderDeferredBubble(bubble, source, contextSentence) {
+  const segments = segmentCount(source);
+  bubble.innerHTML = `
+    <div class="fla-row">
+      <span class="fla-lang">${segments} lines</span>
+      <span class="fla-text fla-preview">${escapeHtml(source)}</span>
+    </div>
+    <div class="fla-actions">
+      <button class="fla-btn fla-translate" data-action="translate">🌐 Translate</button>
+      <button class="fla-btn fla-practice" data-action="practice" title="Practice this dialogue aloud">🎙 Practice</button>
+    </div>
+  `;
+  bubble.querySelector('[data-action="translate"]').onclick = () => {
+    bubble.innerHTML = `<div class="fla-loading">Translating…</div>`;
+    placeBubble(bubble);
+    requestTranslation(source, bubble, contextSentence);
+  };
+  bubble.querySelector('[data-action="practice"]').onclick = () =>
+    chrome.runtime.sendMessage({ type: "OPEN_SIDEPANEL", view: "practice", text: source });
+  placeBubble(bubble);
+}
+
+// Selections get one of two treatments depending on their length.
+async function showSelectionBubble(sel, contextSentence) {
+  const bubble = createBubble(sel.rect);
+  if (segmentCount(sel.text) >= DEFER_TRANSLATE_SEGMENTS) {
+    renderDeferredBubble(bubble, sel.text, contextSentence);
+    return null;
+  }
+  return requestTranslation(sel.text, bubble, contextSentence);
 }
 
 function escapeHtml(str) {
@@ -191,11 +300,7 @@ document.addEventListener("mouseup", async (e) => {
 
   const sel = getSelectionText();
   if (sel) {
-    const contextSentence = getContextSentence(sel.range);
-    const x = window.scrollX + sel.rect.left;
-    const y = window.scrollY + sel.rect.bottom + 8;
-    const bubble = createBubble(x, y);
-    await requestTranslation(sel.text, bubble, contextSentence);
+    await showSelectionBubble(sel, getContextSentence(sel.range));
     return;
   }
 
@@ -209,9 +314,7 @@ document.addEventListener("mouseup", async (e) => {
   if (!word || !word.text) return;
 
   const contextSentence = getContextSentence(word.range);
-  const x = window.scrollX + word.rect.left;
-  const y = window.scrollY + word.rect.bottom + 8;
-  const bubble = createBubble(x, y);
+  const bubble = createBubble(word.rect);
   await requestTranslation(word.text, bubble, contextSentence);
 });
 
@@ -240,9 +343,7 @@ document.addEventListener("mousemove", (e) => {
     if (!word || !word.text) return;
 
     const contextSentence = getContextSentence(word.range);
-    const x = window.scrollX + word.rect.left;
-    const y = window.scrollY + word.rect.bottom + 8;
-    const bubble = createBubble(x, y);
+    const bubble = createBubble(word.rect);
     await requestTranslation(word.text, bubble, contextSentence);
   }, HOVER_DEBOUNCE_MS);
 });
@@ -300,12 +401,14 @@ async function requestTranslation(text, bubble, contextSentence) {
     });
     if (resp?.error) {
       bubble.innerHTML = `<div class="fla-error">${escapeHtml(resp.error)}</div>`;
+      placeBubble(bubble);
       return null;
     }
     renderBubble(bubble, resp, contextSentence);
     return resp;
   } catch (err) {
     bubble.innerHTML = `<div class="fla-error">Translation failed</div>`;
+    placeBubble(bubble);
     console.error("[FLA]", err);
     return null;
   }
@@ -328,10 +431,9 @@ async function handleSaveSelectionShortcut() {
   if (!sel) return;
 
   const contextSentence = getContextSentence(sel.range);
-  const x = window.scrollX + sel.rect.left;
-  const y = window.scrollY + sel.rect.bottom + 8;
-  const bubble = createBubble(x, y);
-  const resp = await requestTranslation(sel.text, bubble, contextSentence);
+  // Alt+S on a passage still defers — the shortcut then saves nothing until
+  // the user presses Translate, which is the same bargain the bubble offers.
+  const resp = await showSelectionBubble(sel, contextSentence);
   if (resp) {
     await saveWord({
       source: resp.source,
@@ -344,10 +446,17 @@ async function handleSaveSelectionShortcut() {
 }
 
 async function requestConjugation(verb) {
-  const resp = await chrome.runtime.sendMessage({
-    type: "CONJUGATE",
-    verb
-  });
+  let resp;
+  try {
+    resp = await chrome.runtime.sendMessage({ type: "CONJUGATE", verb });
+  } catch (err) {
+    // Message channel itself failed (e.g. the service worker was asleep and
+    // didn't wake in time) — different failure than "not a verb," but just
+    // as silent to the user if we don't say something here.
+    console.error("[FLA content] conjugate lookup failed", err);
+    flashBubbleFeedback("Lookup failed — try again.");
+    return;
+  }
   if (resp?.error) {
     flashBubbleFeedback(resp.error);
     return;
@@ -390,6 +499,17 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === "SAVE_SELECTION") {
     handleSaveSelectionShortcut();
     sendResponse({ ok: true });
+  }
+  if (msg.type === "GET_SELECTION") {
+    // The popup asks for this to offer "practice this selection" — it can't
+    // read the page itself, and the selection survives the popup opening.
+    //
+    // tabs.sendMessage fans out to every frame in the tab and the first
+    // sendResponse wins, so a frame with nothing selected stays quiet rather
+    // than racing an empty answer past the frame the user selected in. If no
+    // frame has one, nobody replies and the caller's send simply rejects.
+    const text = getSelectionText()?.text;
+    if (text) sendResponse({ text });
   }
 });
 

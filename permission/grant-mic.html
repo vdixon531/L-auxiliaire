@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>L'auxiliaire — enable microphone</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 480px;
+        margin: 80px auto;
+        padding: 0 16px;
+        color: #333;
+      }
+      h1 { font-size: 20px; }
+      p { line-height: 1.5; }
+      button {
+        font-size: 16px;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 6px;
+        background: #4a90e2;
+        color: #fff;
+        cursor: pointer;
+      }
+      button:disabled { background: #999; cursor: default; }
+      #status { min-height: 1.5em; }
+      #status.ok { color: #2ea44f; }
+      #status.err { color: #c62828; }
+    </style>
+  </head>
+  <body>
+    <h1>🎤 Enable microphone access</h1>
+    <p>
+      Conversation practice needs your microphone to hear you speak French.
+      Chrome asks for this permission once per extension — and the side panel
+      can't show that prompt itself, which is why this page opened in a tab.
+    </p>
+    <button id="grant">Enable microphone</button>
+    <p id="status"></p>
+    <script src="grant-mic.js"></script>
+  </body>
+</html>

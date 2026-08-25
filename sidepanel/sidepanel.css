@@ -26,6 +26,12 @@ body {
   font-weight: 600;
 }
 
+.tab-settings {
+  flex: 0 0 auto;
+  padding: 10px 14px;
+  font-size: 15px;
+}
+
 .view {
   display: none;
   padding: 12px;
@@ -49,7 +55,7 @@ body {
   font-size: 13px;
 }
 
-.toolbar button, .save-verb, #micBtn {
+.toolbar button, .save-verb, #micBtn, #micGrantBtn, #practiceResult button {
   padding: 5px 10px;
   border: 1px solid #4a90e2;
   background: white;
@@ -126,6 +132,10 @@ body {
   font-size: 13px;
 }
 
+.workbook-header[hidden] {
+  display: none;
+}
+
 .workbook-header span {
   flex: 1;
   overflow: hidden;
@@ -146,36 +156,6 @@ body {
 #deleteWorkbook:hover {
   color: #c62828;
   border-color: #c62828;
-}
-
-.workbook-overview-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  border: 1px solid #eee;
-  border-radius: 6px;
-  margin-bottom: 8px;
-  cursor: pointer;
-}
-
-.workbook-overview-item:hover {
-  background: #f5f5f5;
-  border-color: #ddd;
-}
-
-.workbook-overview-name {
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.workbook-overview-count {
-  color: #999;
-  font-size: 12px;
-  flex-shrink: 0;
 }
 
 #vocabList {
@@ -310,4 +290,286 @@ body {
 .hint {
   color: #999;
   font-style: italic;
+}
+
+#settings .row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  font-size: 13px;
+}
+
+#settings .row .controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#settings input[type="color"] {
+  width: 40px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+#settings section {
+  margin-bottom: 12px;
+}
+
+#settings .hint {
+  font-style: normal;
+  border-top: 1px solid #eee;
+  padding-top: 8px;
+  margin-bottom: 12px;
+}
+
+/* -----------------------------
+   Practice tab
+   ----------------------------- */
+
+#practiceInput {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+  margin-bottom: 8px;
+}
+
+#practiceLines {
+  margin-bottom: 12px;
+  max-height: 45vh;
+  overflow-y: auto;
+}
+
+.pline {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+  border-left: 3px solid transparent;
+}
+
+.pline.current {
+  background: #f0f6ff;
+  border-left-color: #4a90e2;
+}
+
+.pline.done .pline-text {
+  color: #2ea44f;
+}
+
+.pline.failed .pline-text {
+  color: #999;
+}
+
+.pline-role {
+  flex: 0 0 auto;
+}
+
+.pline-lang {
+  flex: 0 0 auto;
+  font-size: 10px;
+  text-transform: uppercase;
+  color: #999;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  padding: 0 3px;
+}
+
+.pline-score {
+  font-size: 11px;
+  color: #999;
+}
+
+.pline-gloss {
+  font-size: 11px;
+  color: #999;
+  font-style: italic;
+}
+
+/* The model French, revealed only once a translate turn is resolved. */
+.pline-reveal {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  margin-top: 3px;
+  font-size: 12px;
+  color: #2ea44f;
+}
+
+.pline-play {
+  flex: 0 0 auto;
+  padding: 0 5px;
+  border: 1px solid #ddd;
+  background: white;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 10px;
+  color: #4a90e2;
+  line-height: 1.5;
+}
+
+.pline-play:hover {
+  background: #f0f6ff;
+}
+
+.pinterim {
+  font-style: italic;
+  color: #999;
+  min-height: 1.4em;
+}
+
+.ppass {
+  color: #2ea44f;
+  font-weight: 600;
+}
+
+.pfail {
+  color: #c62828;
+  font-weight: 600;
+}
+
+.pdiff {
+  margin: 6px 0;
+  line-height: 1.7;
+}
+
+.dw {
+  padding: 1px 3px;
+  border-radius: 3px;
+}
+
+.dw.ok {
+  color: #2ea44f;
+}
+
+.dw.near {
+  color: #a86400;
+  background: #fff6e5;
+  text-decoration: underline wavy #e0a030;
+}
+
+.dw.miss {
+  color: #c62828;
+  background: #fdecea;
+  text-decoration: underline wavy #c62828;
+}
+
+/* Live match while the user is still speaking — matched words only, no red:
+   a word not yet said isn't a word said wrong. */
+.plive {
+  margin: 6px 0;
+  line-height: 1.7;
+  min-height: 1.7em;
+}
+
+.lw {
+  padding: 1px 3px;
+  border-radius: 3px;
+  transition: color 0.12s, background 0.12s;
+}
+
+.lw.ok {
+  color: #2ea44f;
+  background: #eaf7ee;
+  font-weight: 600;
+}
+
+.lw.pending {
+  color: #bbb;
+}
+
+#practiceWave {
+  display: block;
+  width: 100%;
+  height: 44px;
+  margin-bottom: 6px;
+}
+
+.mic-hint {
+  font-size: 11px;
+  color: #a86400;
+  background: #fff6e5;
+  border-radius: 4px;
+  padding: 4px 6px;
+  margin-bottom: 8px;
+}
+
+.psummary {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin: 8px 0;
+}
+
+.psummary td {
+  border-bottom: 1px solid #f0f0f0;
+  padding: 4px 6px;
+}
+
+.psummary td:last-child {
+  text-align: right;
+  white-space: nowrap;
+  color: #999;
+}
+
+#practiceResult .toolbar {
+  margin-top: 10px;
+}
+
+/* -----------------------------
+   Modal (mic permission gate)
+   ----------------------------- */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 10;
+}
+
+.modal[hidden] {
+  display: none;
+}
+
+.modal-card {
+  background: white;
+  border-radius: 8px;
+  padding: 16px;
+  max-width: 300px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.2);
+}
+
+.modal-card h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+.modal-card p {
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #555;
+}
+
+.modal-card .toolbar {
+  margin-bottom: 0;
+}
+
+.modal-card button.secondary {
+  border-color: #ddd;
+  color: #777;
 }

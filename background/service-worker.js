@@ -383,7 +383,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             await chrome.sidePanel.open({ tabId: sender.tab.id });
             // Store view intent for the side panel to pick up on load
             await chrome.storage.local.set({
-              sidepanelIntent: { view: msg.view, verb: msg.verb, at: Date.now() }
+              sidepanelIntent: { view: msg.view, verb: msg.verb, text: msg.text, at: Date.now() }
             });
           }
           sendResponse({ ok: true });

@@ -1,5 +1,8 @@
 // sidepanel.js
 
+import { initSettingsPanel, refreshReadingLevel } from "../lib/settings-panel.js";
+import { initPracticePanel, startPracticeFromText, pausePractice } from "../lib/practice-panel.js";
+
 const $ = (id) => document.getElementById(id);
 
 // -----------------------------
@@ -10,19 +13,31 @@ document.querySelectorAll(".tab").forEach((btn) => {
   btn.addEventListener("click", () => switchView(btn.dataset.view));
 });
 
+let currentView = "vocab";
+
 function switchView(view) {
+  // A live practice turn shouldn't keep talking/listening under another tab.
+  if (currentView === "practice" && view !== "practice") pausePractice();
+  currentView = view;
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === view));
   document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === view));
   if (view === "vocab") {
     renderWorkbookSidebar();
     renderVocab();
   }
+  if (view === "practice") {
+    initPracticePanel();
+  }
+  if (view === "settings") {
+    initSettingsPanel();
+    refreshReadingLevel();
+  }
 }
 
 // -----------------------------
 // Workbooks — each vocab[url] bucket (a regular page's URL, or a PDF's
 // "pdf:<hash>" content-hash key) is its own workbook. `null` selection means
-// "All workbooks", the pre-existing flattened view.
+// "All Words", the flattened view across every workbook.
 // -----------------------------
 
 let selectedWorkbook = null;
@@ -38,37 +53,6 @@ function labelForWorkbook(url, entries) {
   }
 }
 
-function renderWorkbookOverview(vocab, workbookNames) {
-  const list = $("vocabList");
-  const urls = Object.keys(vocab);
-  if (urls.length === 0) {
-    list.innerHTML = `<li class="empty">No saved words yet.</li>`;
-    return;
-  }
-
-  list.innerHTML = urls
-    .map((url) => {
-      const entries = vocab[url];
-      const label = workbookNames[url] || labelForWorkbook(url, entries);
-      const count = entries.length;
-      return `
-        <li class="workbook-overview-item" data-key="${escapeAttr(url)}">
-          <span class="workbook-overview-name">${escapeHtml(label)}</span>
-          <span class="workbook-overview-count">${count} word${count === 1 ? "" : "s"}</span>
-        </li>
-      `;
-    })
-    .join("");
-
-  list.querySelectorAll(".workbook-overview-item").forEach((el) => {
-    el.addEventListener("click", () => {
-      selectedWorkbook = el.dataset.key;
-      renderWorkbookSidebar();
-      renderVocab($("vocabSearch").value);
-    });
-  });
-}
-
 async function renderWorkbookSidebar() {
   const { vocab = {}, workbookNames = {} } = await chrome.storage.local.get(["vocab", "workbookNames"]);
 
@@ -79,7 +63,7 @@ async function renderWorkbookSidebar() {
   const totalCount = Object.values(vocab).reduce((sum, arr) => sum + arr.length, 0);
   const items = [
     `<div class="workbook-item ${selectedWorkbook === null ? "active" : ""}" data-key="">
-      <span class="workbook-name">All workbooks</span>
+      <span class="workbook-name">All Words</span>
       <span class="workbook-count">${totalCount}</span>
     </div>`,
     ...Object.entries(vocab).map(([url, entries]) => {
@@ -166,16 +150,6 @@ $("deleteWorkbook").addEventListener("click", async () => {
 async function renderVocab(filter = "") {
   const { vocab = {}, workbookNames = {} } = await chrome.storage.local.get(["vocab", "workbookNames"]);
   updateWorkbookHeader(vocab, workbookNames);
-
-  // "All workbooks" with no active search shows the workbooks themselves —
-  // the sidebar already lists them, but repeating it here as the Vocab tab's
-  // default view means opening it lands on "browse your workbooks," not
-  // "wade through every word you've ever saved, across every source, in one
-  // long list." Typing a search still searches across everything (below).
-  if (!selectedWorkbook && !filter) {
-    renderWorkbookOverview(vocab, workbookNames);
-    return;
-  }
 
   const sourceEntries = selectedWorkbook ? vocab[selectedWorkbook] || [] : Object.values(vocab).flat();
   const list = $("vocabList");
@@ -301,10 +275,21 @@ $("verbInput").addEventListener("keydown", (e) => {
 
 async function lookupVerb(verb) {
   if (!verb) return;
-  const resp = await chrome.runtime.sendMessage({ type: "CONJUGATE", verb });
   const container = $("conjugationTable");
-  if (resp?.error) {
-    container.innerHTML = `<div class="error">${escapeHtml(resp.error)}</div>`;
+  let resp;
+  try {
+    resp = await chrome.runtime.sendMessage({ type: "CONJUGATE", verb });
+  } catch (err) {
+    // Message channel itself failed (e.g. the service worker was asleep and
+    // didn't wake in time, or the extension was reloaded mid-session) — a
+    // different failure than "not a verb," but just as silent to the user
+    // if we don't say something here.
+    console.error("[FLA sidepanel] conjugate lookup failed", err);
+    container.innerHTML = `<div class="error">Lookup failed — try again.</div>`;
+    return;
+  }
+  if (!resp?.table) {
+    container.innerHTML = `<div class="error">${escapeHtml(resp?.error || `Not a known verb: ${verb}`)}</div>`;
     return;
   }
   container.innerHTML = renderConjugationTable(resp.table);
@@ -382,11 +367,18 @@ async function saveVerbTable(table, button) {
 // TTS
 // -----------------------------
 
+// Kept fresh by the storage.onChanged listener below — speak() itself stays
+// sync, so it can't await the config read per call.
+let slowSpeechEnabled = false;
+chrome.storage.local.get("config").then(({ config = {} }) => {
+  slowSpeechEnabled = !!config.slowSpeech;
+});
+
 function speak(text, langCode) {
   const lang = langCode === "en" ? "en-US" : "fr-FR";
   const utter = new SpeechSynthesisUtterance(text);
   utter.lang = lang;
-  utter.rate = 0.9;
+  utter.rate = slowSpeechEnabled ? 0.7 : 0.9;
   window.speechSynthesis.cancel();
   window.speechSynthesis.speak(utter);
 }
@@ -409,18 +401,41 @@ function escapeAttr(s) {
 // Intent handoff from content script
 // -----------------------------
 
+// The load path (checkIntent) and the storage.onChanged path below can both
+// see the same freshly-written intent — dedupe by its `at` timestamp.
+let lastIntentAt = 0;
+
+async function handleIntent(intent) {
+  if (!intent) return;
+  await chrome.storage.local.remove("sidepanelIntent");
+  // Only act on recent intents, once
+  if (Date.now() - intent.at > 5000) return;
+  if (intent.at === lastIntentAt) return;
+  lastIntentAt = intent.at;
+  if (intent.view === "conjugation" && intent.verb) {
+    switchView("conjugation");
+    $("verbInput").value = intent.verb;
+    lookupVerb(intent.verb);
+  }
+  if (intent.view === "practice" && intent.text) {
+    switchView("practice");
+    startPracticeFromText(intent.text);
+  }
+}
+
 async function checkIntent() {
   const { sidepanelIntent } = await chrome.storage.local.get("sidepanelIntent");
-  if (!sidepanelIntent) return;
-  // Only act on recent intents
-  if (Date.now() - sidepanelIntent.at > 5000) return;
-  if (sidepanelIntent.view === "conjugation" && sidepanelIntent.verb) {
-    switchView("conjugation");
-    $("verbInput").value = sidepanelIntent.verb;
-    lookupVerb(sidepanelIntent.verb);
-  }
-  await chrome.storage.local.remove("sidepanelIntent");
+  await handleIntent(sidepanelIntent);
 }
+
+// checkIntent() only runs at load — a panel that's already open when the user
+// clicks a bubble button needs to see the new intent land too. (The remove()
+// inside handleIntent re-fires this with newValue undefined, hence the guard.)
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local") return;
+  if (changes.sidepanelIntent?.newValue) handleIntent(changes.sidepanelIntent.newValue);
+  if (changes.config?.newValue) slowSpeechEnabled = !!changes.config.newValue.slowSpeech;
+});
 
 renderWorkbookSidebar();
 renderVocab();

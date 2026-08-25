@@ -9,6 +9,7 @@
       <button class="tab active" data-view="vocab">Vocabulary</button>
       <button class="tab" data-view="conjugation">Conjugation</button>
       <button class="tab" data-view="practice">Practice</button>
+      <button class="tab tab-settings" data-view="settings" title="Settings">⚙</button>
     </nav>
 
     <section id="vocab" class="view active">
@@ -39,11 +40,115 @@
     </section>
 
     <section id="practice" class="view">
-      <p class="hint">Stretch goal: pronunciation practice. Coming soon.</p>
-      <button id="micBtn" disabled>🎤 Speak</button>
-      <div id="practiceResult"></div>
+      <div id="practiceSetup">
+        <p class="hint">
+          Select a dialogue on a page and click 🎙 Practice, or paste one below
+          (one line per speaker). All-French dialogues alternate reading turns;
+          mixed French/English dialogues ask you to say the English lines in
+          French. PDF selections may split lines mid-sentence — tidy them up
+          here first.
+        </p>
+        <textarea id="practiceInput" rows="6" placeholder="— Bonjour, comment ça va ?&#10;— Ça va bien, merci !"></textarea>
+        <div class="toolbar">
+          <button id="practiceStart">Start session</button>
+        </div>
+        <div id="practiceNotice"></div>
+      </div>
+      <div id="practiceSession" hidden>
+        <div id="practiceLines"></div>
+        <canvas id="practiceWave" hidden></canvas>
+        <div id="practiceMicHint" class="mic-hint" hidden></div>
+        <div class="toolbar">
+          <button id="micBtn" hidden>🎤 Speak</button>
+          <button id="practiceDone" hidden>✓ Done</button>
+          <button id="practiceListen" hidden>🔊 Listen</button>
+          <button id="practiceListenSlow" hidden>🐢 Slowly</button>
+          <button id="practiceRetry" hidden>Try again</button>
+          <button id="practiceSkip" hidden>Skip</button>
+          <button id="practiceStop">■ Stop</button>
+        </div>
+        <div id="practiceResult"></div>
+      </div>
+
+      <div id="micModal" class="modal" hidden>
+        <div class="modal-card">
+          <h3>🎤 Microphone needed</h3>
+          <p>
+            Conversation practice listens to you speak French. Chrome asks for
+            this once per extension, and the side panel can't show that prompt
+            itself — the button below opens a tab that can.
+          </p>
+          <div class="toolbar">
+            <button id="micGrantBtn">Enable microphone</button>
+            <button id="micModalDismiss" class="secondary">Not now</button>
+          </div>
+        </div>
+      </div>
     </section>
 
-    <script src="sidepanel.js"></script>
+    <section id="settings" class="view">
+      <section class="toggles">
+        <p class="hint">Click any word, or select a phrase, to translate it.</p>
+        <label class="row">
+          <span>Hover-to-translate</span>
+          <input type="checkbox" id="hoverToggle" />
+        </label>
+        <label class="row">
+          <span>Slower speech</span>
+          <input type="checkbox" id="slowSpeech" />
+        </label>
+      </section>
+
+      <p class="hint">Translation runs on-device via Chrome's built-in AI — no account or API key needed. Requires Chrome 138+.</p>
+
+      <section class="reading-aids">
+        <label class="row">
+          <span>Gender / plural color coding</span>
+          <input type="checkbox" id="colorCodingToggle" />
+        </label>
+        <label class="row">
+          <span>Masculine</span>
+          <span class="controls">
+            <input type="checkbox" id="catMasculineToggle" title="Show masculine highlighting" />
+            <input type="color" id="colorMasculine" />
+          </span>
+        </label>
+        <label class="row">
+          <span>Feminine</span>
+          <span class="controls">
+            <input type="checkbox" id="catFeminineToggle" title="Show feminine highlighting" />
+            <input type="color" id="colorFeminine" />
+          </span>
+        </label>
+        <label class="row">
+          <span>Plural</span>
+          <span class="controls">
+            <input type="checkbox" id="catPluralToggle" title="Show plural highlighting" />
+            <input type="color" id="colorPlural" />
+          </span>
+        </label>
+        <label class="row">
+          <span>Neutral</span>
+          <span class="controls">
+            <input type="checkbox" id="catNeutralToggle" title="Show neutral highlighting" />
+            <input type="color" id="colorNeutral" />
+          </span>
+        </label>
+        <label class="row">
+          <span>Frequency dimming</span>
+          <input type="checkbox" id="frequencyDimmingToggle" />
+        </label>
+        <label class="row">
+          <span>Cognate highlighting</span>
+          <input type="checkbox" id="cognateHighlightingToggle" />
+        </label>
+        <div class="row">
+          <span>Reading level</span>
+          <span id="readingLevel">—</span>
+        </div>
+      </section>
+    </section>
+
+    <script type="module" src="sidepanel.js"></script>
   </body>
 </html>

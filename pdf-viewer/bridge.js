@@ -71,7 +71,9 @@ loadHandoff();
 // -----------------------------
 
 const BUBBLE_ID = "fla-bubble";
-const HOVER_DEBOUNCE_MS = 400;
+const HOVER_DEBOUNCE_MS = 900;
+const BUBBLE_MARGIN = 8;
+const DEFER_TRANSLATE_SEGMENTS = 4;
 
 let hoverModeEnabled = false;
 let currentBubble = null;
@@ -93,20 +95,74 @@ function removeBubble() {
   }
 }
 
-function createBubble(x, y) {
+// Mirrors content-script.js's bubble placement (see the comments there): the
+// bubble is re-measured and re-placed after every content swap, and goes
+// beside a tall selection rather than off the bottom of the screen.
+function createBubble(rect) {
   removeBubble();
   const bubble = document.createElement("div");
   bubble.id = BUBBLE_ID;
   bubble.className = "fla-bubble";
-  bubble.style.left = `${x}px`;
-  bubble.style.top = `${y}px`;
   bubble.innerHTML = `<div class="fla-loading">Translating…</div>`;
   document.body.appendChild(bubble);
   currentBubble = bubble;
+  bubble._rect = rect;
+  placeBubble(bubble);
   return bubble;
 }
 
+function placeBubble(bubble) {
+  const rect = bubble._rect;
+  if (!rect) return;
+  const bw = bubble.offsetWidth;
+  const bh = bubble.offsetHeight;
+  const vw = document.documentElement.clientWidth;
+  const vh = document.documentElement.clientHeight;
+
+  const spaceRight = vw - rect.right;
+  const spaceLeft = rect.left;
+  const spaceBelow = vh - rect.bottom;
+  const beside =
+    (rect.height > vh * 0.3 || spaceBelow < Math.min(bh, 140)) &&
+    Math.max(spaceRight, spaceLeft) >= bw + BUBBLE_MARGIN * 2;
+
+  let left;
+  let top;
+  if (beside) {
+    left = spaceRight >= spaceLeft ? rect.right + BUBBLE_MARGIN : rect.left - bw - BUBBLE_MARGIN;
+    top = rect.top;
+  } else {
+    left = rect.left;
+    top = rect.bottom + BUBBLE_MARGIN;
+    if (top + bh > vh - BUBBLE_MARGIN) {
+      const above = rect.top - bh - BUBBLE_MARGIN;
+      if (above >= BUBBLE_MARGIN) top = above;
+    }
+  }
+  left = Math.min(Math.max(BUBBLE_MARGIN, left), Math.max(BUBBLE_MARGIN, vw - bw - BUBBLE_MARGIN));
+  top = Math.min(Math.max(BUBBLE_MARGIN, top), Math.max(BUBBLE_MARGIN, vh - bh - BUBBLE_MARGIN));
+
+  bubble.style.left = `${window.scrollX + left}px`;
+  bubble.style.top = `${window.scrollY + top}px`;
+}
+
+// Deliberately NOT the same as content-script.js's copy. A PDF text layer
+// emits a \n per *visual* line, so counting lines here would defer almost
+// every multi-line selection, however short — count sentences instead.
+function segmentCount(text) {
+  return String(text || "")
+    .replace(/\s+/g, " ")
+    .split(/(?<=[.!?…])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean).length;
+}
+
 function renderBubble(bubble, { source, translation, sourceLang, targetLang }, contextSentence) {
+  // Multi-line or multi-sentence selections can be practiced as a dialogue in
+  // the side panel. Note PDF selections carry a \n per *visual* line (see the
+  // text-layer comment below), so the practice parser may split mid-sentence —
+  // the panel's textarea lets the user tidy the lines up first.
+  const canPractice = source.includes("\n") || /[.!?…]\s+\S/.test(source);
   bubble.innerHTML = `
     <div class="fla-row">
       <span class="fla-lang">${sourceLang}</span>
@@ -122,6 +178,7 @@ function renderBubble(bubble, { source, translation, sourceLang, targetLang }, c
       <button class="fla-btn fla-save" data-action="save">＋ Save</button>
       <button class="fla-btn fla-conj" data-action="conjugate">Conjugate</button>
       <button class="fla-btn fla-workbook" data-action="workbook" title="Open workbook">📖 Workbook</button>
+      ${canPractice ? `<button class="fla-btn fla-practice" data-action="practice" title="Practice this dialogue aloud">🎙 Practice</button>` : ""}
     </div>
   `;
 
@@ -133,6 +190,45 @@ function renderBubble(bubble, { source, translation, sourceLang, targetLang }, c
     requestConjugation(sourceLang === "fr" ? source : translation);
   bubble.querySelector('[data-action="workbook"]').onclick = () =>
     chrome.runtime.sendMessage({ type: "OPEN_SIDEPANEL", view: "vocab" });
+  const practiceBtn = bubble.querySelector('[data-action="practice"]');
+  if (practiceBtn) {
+    practiceBtn.onclick = () =>
+      chrome.runtime.sendMessage({ type: "OPEN_SIDEPANEL", view: "practice", text: source });
+  }
+  placeBubble(bubble);
+}
+
+// Passage-length selections wait behind a Translate button — see the fuller
+// rationale on content-script.js's copy. The button appears only in this
+// state; once translated the bubble is an ordinary one.
+function renderDeferredBubble(bubble, source, contextSentence) {
+  bubble.innerHTML = `
+    <div class="fla-row">
+      <span class="fla-lang">${segmentCount(source)} lines</span>
+      <span class="fla-text fla-preview">${escapeHtml(source)}</span>
+    </div>
+    <div class="fla-actions">
+      <button class="fla-btn fla-translate" data-action="translate">🌐 Translate</button>
+      <button class="fla-btn fla-practice" data-action="practice" title="Practice this dialogue aloud">🎙 Practice</button>
+    </div>
+  `;
+  bubble.querySelector('[data-action="translate"]').onclick = () => {
+    bubble.innerHTML = `<div class="fla-loading">Translating…</div>`;
+    placeBubble(bubble);
+    requestTranslation(source, bubble, contextSentence);
+  };
+  bubble.querySelector('[data-action="practice"]').onclick = () =>
+    chrome.runtime.sendMessage({ type: "OPEN_SIDEPANEL", view: "practice", text: source });
+  placeBubble(bubble);
+}
+
+async function showSelectionBubble(sel, contextSentence) {
+  const bubble = createBubble(sel.rect);
+  if (segmentCount(sel.text) >= DEFER_TRANSLATE_SEGMENTS) {
+    renderDeferredBubble(bubble, sel.text, contextSentence);
+    return null;
+  }
+  return requestTranslation(sel.text, bubble, contextSentence);
 }
 
 function escapeHtml(str) {
@@ -237,11 +333,7 @@ document.addEventListener("mouseup", async (e) => {
 
   const sel = getSelectionText();
   if (sel) {
-    const contextSentence = getContextSentence(sel.range);
-    const x = window.scrollX + sel.rect.left;
-    const y = window.scrollY + sel.rect.bottom + 8;
-    const bubble = createBubble(x, y);
-    await requestTranslation(sel.text, bubble, contextSentence);
+    await showSelectionBubble(sel, getContextSentence(sel.range));
     return;
   }
 
@@ -252,9 +344,7 @@ document.addEventListener("mouseup", async (e) => {
   if (!word || !word.text) return;
 
   const contextSentence = getContextSentence(word.range);
-  const x = window.scrollX + word.rect.left;
-  const y = window.scrollY + word.rect.bottom + 8;
-  const bubble = createBubble(x, y);
+  const bubble = createBubble(word.rect);
   await requestTranslation(word.text, bubble, contextSentence);
 });
 
@@ -272,9 +362,7 @@ document.addEventListener("mousemove", (e) => {
     if (!word || !word.text) return;
 
     const contextSentence = getContextSentence(word.range);
-    const x = window.scrollX + word.rect.left;
-    const y = window.scrollY + word.rect.bottom + 8;
-    const bubble = createBubble(x, y);
+    const bubble = createBubble(word.rect);
     await requestTranslation(word.text, bubble, contextSentence);
   }, HOVER_DEBOUNCE_MS);
 });
@@ -315,12 +403,14 @@ async function requestTranslation(text, bubble, contextSentence) {
     const resp = await chrome.runtime.sendMessage({ type: "TRANSLATE", text, contextSentence });
     if (resp?.error) {
       bubble.innerHTML = `<div class="fla-error">${escapeHtml(resp.error)}</div>`;
+      placeBubble(bubble);
       return null;
     }
     renderBubble(bubble, resp, contextSentence);
     return resp;
   } catch (err) {
     bubble.innerHTML = `<div class="fla-error">Translation failed</div>`;
+    placeBubble(bubble);
     console.error("[FLA pdf-viewer]", err);
     return null;
   }
@@ -348,10 +438,7 @@ async function handleSaveSelectionShortcut() {
   if (!sel) return;
 
   const contextSentence = getContextSentence(sel.range);
-  const x = window.scrollX + sel.rect.left;
-  const y = window.scrollY + sel.rect.bottom + 8;
-  const bubble = createBubble(x, y);
-  const resp = await requestTranslation(sel.text, bubble, contextSentence);
+  const resp = await showSelectionBubble(sel, contextSentence);
   if (resp) {
     await saveWord({
       source: resp.source,
@@ -364,7 +451,17 @@ async function handleSaveSelectionShortcut() {
 }
 
 async function requestConjugation(verb) {
-  const resp = await chrome.runtime.sendMessage({ type: "CONJUGATE", verb });
+  let resp;
+  try {
+    resp = await chrome.runtime.sendMessage({ type: "CONJUGATE", verb });
+  } catch (err) {
+    // Message channel itself failed (e.g. the service worker was asleep and
+    // didn't wake in time) — different failure than "not a verb," but just
+    // as silent to the user if we don't say something here.
+    console.error("[FLA pdf-viewer] conjugate lookup failed", err);
+    flashBubbleFeedback("Lookup failed — try again.");
+    return;
+  }
   if (resp?.error) {
     flashBubbleFeedback(resp.error);
     return;
@@ -400,6 +497,18 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === "SAVE_SELECTION") {
     handleSaveSelectionShortcut();
     sendResponse({ ok: true });
+  }
+  if (msg.type === "GET_SELECTION") {
+    // Same contract as content-script.js — the popup's "practice selection"
+    // works over a PDF too. This page is an extension page, not a content
+    // script, so the popup reaches it by runtime broadcast rather than
+    // tabs.sendMessage; the msg.type filter above is what keeps that safe.
+    //
+    // That broadcast hits *every* open viewer tab at once, so answer only if
+    // this one is both on screen and actually holding a selection — otherwise
+    // a background PDF could win the race with an empty reply.
+    const text = document.visibilityState === "visible" ? getSelectionText()?.text : "";
+    if (text) sendResponse({ text });
   }
 });
 
