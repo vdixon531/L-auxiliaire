@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Welcome to L'auxiliaire</title>
+    <link rel="stylesheet" href="../lib/theme.css" />
+    <!-- The real in-page bubble and reading-aid styles. The demo below is a
+         reproduction, not a screenshot: it uses the same .fla-bubble and
+         .fla-word--* classes the content script emits on a real page. -->
+    <link rel="stylesheet" href="../content/popup.css" />
+    <link rel="stylesheet" href="../lib/tour.css" />
+    <link rel="stylesheet" href="../lib/flip.css" />
+    <link rel="stylesheet" href="welcome.css" />
+  </head>
+  <body>
+    <header class="masthead">
+      <h1>L'auxiliaire</h1>
+      <p class="tagline">French, while you read.</p>
+    </header>
+
+    <main class="stage">
+      <!-- Step 2's target. We can't overlay Chrome's real toolbar — it isn't in
+           any DOM we control — so it's drawn here and spotlighted like anything
+           else on the page. -->
+      <section id="toolbarMock" class="toolbar-mock" aria-label="Where to find the extension">
+        <div class="toolbar-mock__bar">
+          <span class="toolbar-mock__dots"><i></i><i></i><i></i></span>
+          <span class="toolbar-mock__omni">lemonde.fr/culture</span>
+          <span class="toolbar-mock__puzzle" title="Extensions menu">🧩</span>
+          <span id="toolbarMockIcon" class="toolbar-mock__icon" title="L'auxiliaire">
+            <img src="../icons/icon-48.png" alt="" width="18" height="18" />
+          </span>
+        </div>
+        <p class="toolbar-mock__cap">Open the 🧩 menu and pin L'auxiliaire so it stays put.</p>
+      </section>
+
+      <!-- Step 3/4's target. Words carry the genuine annotation classes, so the
+           reading-aids chapter can switch them on for real. -->
+      <section class="demo" aria-label="Try it">
+        <p class="demo__eyebrow">Try it — this paragraph behaves like a real page</p>
+        <article id="demoArticle" class="demo__article" lang="fr"></article>
+        <p id="demoHint" class="demo__hint">Click any word above.</p>
+      </section>
+
+
+      <section class="cta">
+        <p id="afterTourPrompt" class="cta__prompt" hidden>
+          That's the page half. The other half is your workbook — take its tour next.
+        </p>
+        <div class="cta__row">
+          <button id="workbookTour" class="cta__primary">Tour the workbook</button>
+          <button id="openWorkbook" class="cta__secondary">Open my workbook</button>
+          <button id="startTour" class="cta__quiet" hidden>Replay this tour</button>
+        </div>
+      </section>
+
+      <!-- Revealed once the core tour finishes or is skipped. -->
+      <section id="chapters" class="chapters" hidden>
+        <h2>That's the core. Want the rest?</h2>
+        <p class="chapters__lede">
+          Each of these takes about twenty seconds. Nothing here is required —
+          you already know enough to start reading.
+        </p>
+        <div class="chapters__grid">
+          <button class="chapter" data-chapter="readingAids">
+            <span class="chapter__icon" aria-hidden="true">🎨</span>
+            <span class="chapter__name">Reading aids</span>
+            <span class="chapter__desc">Colour every noun by grammatical gender as you read.</span>
+          </button>
+          <button class="chapter" data-chapter="passages">
+            <span class="chapter__icon" aria-hidden="true">📑</span>
+            <span class="chapter__name">Whole passages</span>
+            <span class="chapter__desc">Select more than a word, and why long selections wait.</span>
+          </button>
+          <button class="chapter" data-chapter="conjugation">
+            <span class="chapter__icon" aria-hidden="true">🔀</span>
+            <span class="chapter__name">Conjugation</span>
+            <span class="chapter__desc">Around 7,000 verbs, offline, straight from the bubble.</span>
+          </button>
+          <button class="chapter" data-chapter="pdf">
+            <span class="chapter__icon" aria-hidden="true">📄</span>
+            <span class="chapter__name">PDFs</span>
+            <span class="chapter__desc">Read a PDF with the same tools — and why you open it by hand.</span>
+          </button>
+          <button class="chapter" data-chapter="practice">
+            <span class="chapter__icon" aria-hidden="true">🎙</span>
+            <span class="chapter__name">Speaking practice</span>
+            <span class="chapter__desc">Say a dialogue out loud and get scored on pronunciation.</span>
+          </button>
+          <button class="chapter" data-chapter="shortcuts">
+            <span class="chapter__icon" aria-hidden="true">⌨</span>
+            <span class="chapter__name">Shortcuts</span>
+            <span class="chapter__desc">Three keys that save a trip to the mouse.</span>
+          </button>
+        </div>
+      </section>
+
+      <footer class="foot">
+        <p>
+          Everything runs on your own machine using Chrome's built-in AI. No account,
+          no API key, no server, nothing to sign up for — and nothing you read or save
+          leaves this computer.
+        </p>
+        <p id="aiStatus" class="foot__status"></p>
+      </footer>
+    </main>
+
+    <script type="module" src="welcome.js"></script>
+  </body>
+</html>

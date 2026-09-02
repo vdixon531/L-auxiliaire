@@ -45,13 +45,37 @@ function shardKeyOf(normalized) {
   return /^[a-z]/.test(normalized) ? normalized[0] : "_other";
 }
 
+// fetch() against our own bundled chrome-extension:// resources can throw a
+// raw "TypeError: Failed to fetch" — not resp.ok === false, an actual thrown
+// error — in the moment right after the service worker wakes from idle and
+// its resource loader isn't warmed up yet. Uncaught, that error propagated
+// through conjugate()/isKnownVerb() to service-worker.js's generic handler
+// and came out the other end as a cryptic "Failed to fetch" wherever a lookup
+// happened to be in flight — including LOOKUP_WORDS, which annotator.js calls
+// on every page scan, so this was the likely repeat offender. One retry after
+// a short delay clears the transient case; a real failure still degrades to
+// an empty shard (treated as "no data for this letter") rather than throwing.
+async function fetchJsonWithRetry(url) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const resp = await fetch(url);
+      return resp.ok ? await resp.json() : {};
+    } catch (err) {
+      if (attempt > 0) {
+        console.error("[FLA conjugation] failed to load", url, err);
+        return {};
+      }
+      await new Promise((r) => setTimeout(r, 200));
+    }
+  }
+}
+
 async function loadShard(cache, dir, key) {
   const cached = cache.get(key);
   if (cached) return cached;
 
   const url = chrome.runtime.getURL(`data/${dir}/${key}.json`);
-  const resp = await fetch(url);
-  const data = resp.ok ? await resp.json() : {};
+  const data = await fetchJsonWithRetry(url);
   cache.set(key, data);
   return data;
 }

@@ -1,107 +1,243 @@
+/* Tokens and webfonts come from lib/theme.css (linked ahead of this file). */
+
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   margin: 0;
-  color: #1a1a1a;
-  font-size: 14px;
+  font-size: 13px;
+  line-height: 1.5;
 }
+
+/* -----------------------------
+   Tabs
+   ----------------------------- */
 
 .tabs {
   display: flex;
-  border-bottom: 1px solid #ddd;
-  background: #fafafa;
+  align-items: stretch;
+  border-bottom: 1px solid var(--fla-line);
+  background: var(--fla-card);
+  position: sticky;
+  top: 0;
+  z-index: 5;
 }
 
 .tab {
   flex: 1;
-  padding: 10px;
+  padding: 11px 6px 9px;
   border: none;
   background: transparent;
+  color: var(--fla-ink-muted);
   cursor: pointer;
   border-bottom: 2px solid transparent;
+  font-family: var(--fla-sans);
   font-size: 13px;
+  font-weight: 500;
+  transition: color 0.12s, border-color 0.12s;
+}
+
+.tab:hover {
+  color: var(--fla-ink-muted);
 }
 
 .tab.active {
-  border-bottom-color: #4a90e2;
+  color: var(--fla-heading);
   font-weight: 600;
+  border-bottom-color: var(--fla-primary);
 }
 
 .tab-settings {
   flex: 0 0 auto;
   padding: 10px 14px;
-  font-size: 15px;
+  font-size: 16px;
 }
 
 .view {
   display: none;
-  padding: 12px;
+  padding: var(--fla-md) var(--fla-gutter);
+  /* Clears the floating appearance toggle at the bottom right. */
+  padding-bottom: 60px;
 }
 
 .view.active {
   display: block;
 }
 
+/* -----------------------------
+   Shared controls
+   ----------------------------- */
+
 .toolbar {
   display: flex;
   gap: 6px;
-  margin-bottom: 12px;
+  margin-bottom: var(--fla-gutter);
+  flex-wrap: wrap;
 }
 
 .toolbar input {
   flex: 1;
-  padding: 5px 8px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  min-width: 90px;
+  padding: 6px 9px;
+  border: 1px solid var(--fla-line-strong);
+  border-radius: var(--fla-r-sm);
+  background: var(--fla-card);
+  color: var(--fla-ink);
+  font-family: inherit;
   font-size: 13px;
 }
 
-.toolbar button, .save-verb, #micBtn, #micGrantBtn, #practiceResult button {
-  padding: 5px 10px;
-  border: 1px solid #4a90e2;
-  background: white;
-  color: #4a90e2;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
+.toolbar input::placeholder {
+  color: var(--fla-ink-faint);
 }
 
-.toolbar button:hover {
-  background: #f0f6ff;
+.toolbar input:focus {
+  outline: none;
+  border-color: var(--fla-primary);
 }
+
+.toolbar button,
+.save-verb,
+#micBtn,
+#micGrantBtn,
+#practiceResult button {
+  padding: 6px 11px;
+  border: 1px solid var(--fla-line-strong);
+  background: var(--fla-card);
+  color: var(--fla-ink-muted);
+  border-radius: var(--fla-r-sm);
+  cursor: pointer;
+  font-family: var(--fla-sans);
+  font-size: 12px;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.toolbar button:hover,
+.save-verb:hover {
+  background: var(--fla-raised);
+  border-color: var(--fla-ink-faint);
+  color: var(--fla-ink);
+}
+
+/* One filled action per surface — the thing the user came to this view to do. */
+#lookupVerb,
+#practiceStart,
+#micGrantBtn,
+#micBtn,
+#practiceDone {
+  background: var(--fla-primary);
+  border-color: var(--fla-primary);
+  color: var(--fla-on-primary);
+  font-weight: 500;
+}
+
+#lookupVerb:hover,
+#practiceStart:hover,
+#micGrantBtn:hover,
+#micBtn:hover,
+#practiceDone:hover {
+  background: var(--fla-primary-soft);
+  border-color: var(--fla-primary-soft);
+  color: var(--fla-on-primary);
+}
+
+/* -----------------------------
+   Vocabulary
+   ----------------------------- */
 
 .vocab-layout {
   display: flex;
-  gap: 10px;
+  gap: var(--fla-gutter);
   align-items: flex-start;
 }
 
+/* A column: "＋ Collection" is pinned at the top — it's the thing you reach
+   for before the list exists — and the list scrolls beneath it. */
 #workbookSidebar {
-  flex: 0 0 110px;
+  flex: 0 0 116px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  border-right: 1px solid #eee;
-  padding-right: 8px;
-  max-height: calc(100vh - 90px);
-  overflow-y: auto;
+  border-right: 1px solid var(--fla-line);
+  padding-right: var(--fla-sm);
+  height: calc(100vh - 96px);
+  /* Without this the rail widens to fit the longest collection name. A flex
+     item's automatic minimum size is its min-content width, and a nowrap name
+     has no smaller min-content — so flex-basis is floored by the text and the
+     ellipsis never engages. min-width:0 is what lets it truncate instead. */
+  min-width: 0;
 }
 
-.workbook-item {
+#workbookList {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  padding: 5px 6px;
-  border-radius: 4px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  margin-top: var(--fla-sm);
+}
+
+/* Floats over the panel rather than living in one tab's layout — it applies
+   to the whole panel. Icon only: a sun or a moon needs no caption. */
+.theme-toggle {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid var(--fla-line);
+  border-radius: 50%;
+  background: var(--fla-card);
+  color: var(--fla-ink-muted);
+  box-shadow: var(--fla-shadow-sm);
   cursor: pointer;
-  font-size: 11px;
+  transition: background 0.12s, border-color 0.12s, color 0.12s, transform 0.12s;
+}
+
+.theme-toggle:hover {
+  background: var(--fla-raised);
+  border-color: var(--fla-ink-faint);
+  color: var(--fla-ink);
+  transform: translateY(-1px);
+}
+
+/* The svg inherits currentColor, so it tracks the button's own hover state.
+   Sized here rather than in themeIcon()'s markup, so the same icon can be
+   small elsewhere. */
+.theme-toggle svg {
+  display: block;
+  width: 20px;
+  height: 20px;
+}
+
+.workbook-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  /* Left padding clears the drag handle, with room to breathe between the
+     grip and the name. */
+  padding: 6px var(--fla-sm) 6px 22px;
+  min-width: 0;
+  border-radius: var(--fla-r-sm);
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--fla-ink-muted);
+  border-left: 2px solid transparent;
+  transition: background 0.12s, color 0.12s;
 }
 
 .workbook-item:hover {
-  background: #f5f5f5;
+  background: var(--fla-sunken);
 }
 
 .workbook-item.active {
-  background: #e8f0fe;
+  background: var(--fla-primary-tint);
+  border-left-color: var(--fla-primary);
+  color: var(--fla-ink);
   font-weight: 600;
 }
 
@@ -109,11 +245,15 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .workbook-count {
-  color: #999;
-  font-size: 10px;
+  color: var(--fla-ink-muted);
+  font-size: 11px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
 }
 
 .vocab-main {
@@ -125,11 +265,9 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 10px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #eee;
-  font-weight: 600;
-  font-size: 13px;
+  margin-bottom: var(--fla-gutter);
+  padding-bottom: var(--fla-sm);
+  border-bottom: 1px solid var(--fla-line);
 }
 
 .workbook-header[hidden] {
@@ -141,21 +279,31 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-family: var(--fla-serif);
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--fla-heading);
 }
 
 .workbook-header button {
   background: transparent;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  border: 1px solid var(--fla-line);
+  border-radius: var(--fla-r-sm);
   cursor: pointer;
-  padding: 2px 7px;
+  padding: 3px 7px;
   font-size: 12px;
-  font-weight: normal;
+  color: var(--fla-ink-faint);
+  transition: color 0.12s, border-color 0.12s;
+}
+
+.workbook-header button:hover {
+  color: var(--fla-ink);
+  border-color: var(--fla-ink-faint);
 }
 
 #deleteWorkbook:hover {
-  color: #c62828;
-  border-color: #c62828;
+  color: var(--fla-error);
+  border-color: var(--fla-error);
 }
 
 #vocabList {
@@ -165,165 +313,575 @@ body {
 }
 
 .entry {
-  padding: 8px;
-  border: 1px solid #eee;
-  border-radius: 6px;
-  margin-bottom: 8px;
+  padding: var(--fla-gutter) var(--fla-gutter) var(--fla-sm);
+  background: var(--fla-card);
+  border: 1px solid var(--fla-line);
+  border-radius: var(--fla-r);
+  box-shadow: var(--fla-shadow-sm);
   position: relative;
 }
 
-.entry-source, .entry-translation {
+.entry-source,
+.entry-translation {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 6px;
-  padding: 3px 0;
+  padding: 2px 0;
 }
+
+/* The saved French word is the card's headline. */
+.entry-source {
+  font-family: var(--fla-serif);
+  font-size: 19px;
+  line-height: 1.3;
+  color: var(--fla-heading);
+  padding-right: 18px; /* clears the × */
+}
+
+/* A word that just arrived from the page.
+   Both effects the brief asked to try, because they do different jobs: the
+   jump says "something moved here", and the ring says "this one". The ring
+   outlasts the jump so the eye has time to land on it.
+
+   `translate`/`scale` rather than `transform` — .entry-faces uses transform
+   for the flip, and the individual properties compose with it instead of
+   fighting it. */
+@keyframes fla-entry-arrive {
+  from {
+    translate: 0 -10px;
+    scale: 0.985;
+  }
+  60% {
+    translate: 0 0;
+    scale: 1.015;
+  }
+  to {
+    translate: 0 0;
+    scale: 1;
+  }
+}
+
+/* Sage, the affirmative colour — the same one the bubble's "Saved ✓" pill
+   uses, so the confirmation in the page and the card in the panel read as one
+   event rather than two. */
+@keyframes fla-entry-ring {
+  0%,
+  55% {
+    border-color: var(--fla-accent);
+    box-shadow: 0 0 0 3px var(--fla-accent-tint), var(--fla-shadow-sm);
+  }
+  100% {
+    border-color: var(--fla-line);
+    box-shadow: 0 0 0 0 transparent, var(--fla-shadow-sm);
+  }
+}
+
+.entry-flip.is-new {
+  animation: fla-entry-arrive 0.42s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+  /* Above its neighbours while it scales, so the ring isn't clipped by the
+     next card's background. */
+  z-index: 1;
+}
+
+.entry-flip.is-new .entry--front {
+  animation: fla-entry-ring 1.6s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entry-flip.is-new,
+  .entry-flip.is-new .entry--front {
+    animation: none;
+  }
+  /* Still mark it — without motion the ring is the only signal left. */
+  .entry-flip.is-new .entry--front {
+    border-color: var(--fla-accent);
+  }
+}
+
+/* Gender mark on a saved noun. Line style carries the meaning as much as
+   colour does — the gender colours are user-chosen and can't be trusted to
+   hold contrast, and colour alone excludes anyone who can't tell the two hues
+   apart. Solid = masculine, dotted = feminine, dashed = plural.
+
+   text-decoration is used rather than the word's own colour so the ink stays
+   at full contrast; the mark is decoration, not text. */
+.entry-word {
+  text-underline-offset: 5px;
+  text-decoration-thickness: 2px;
+}
+
+.entry-word--masculine {
+  text-decoration: underline solid var(--fla-color-masculine, #4a90d9);
+}
+
+.entry-word--feminine {
+  text-decoration: underline dotted var(--fla-color-feminine, #d9498a);
+}
+
+.entry-word--plural {
+  text-decoration: underline dashed var(--fla-color-plural, #2ea44f);
+}
+
+/* The label itself: "m." / "f." / "pl.", reading like a dictionary entry. The
+   text sits on --fla-variant at a known-good contrast; the gender colour is a
+   rule down its edge, where it can be any hue without hurting legibility. */
+.gender {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  position: relative;
+  top: 4px;
+  padding: 2px 5px;
+  border-left: 3px solid var(--gender-color, var(--fla-line-strong));
+  border-radius: 2px 3px 3px 2px;
+  background: var(--fla-variant);
+  color: var(--fla-ink-muted);
+  font-family: var(--fla-sans);
+  font-size: 10px;
+  font-style: italic;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.gender--masculine { --gender-color: var(--fla-color-masculine, #4a90d9); }
+.gender--feminine { --gender-color: var(--fla-color-feminine, #d9498a); }
+.gender--plural { --gender-color: var(--fla-color-plural, #2ea44f); }
 
 .entry-translation {
-  color: #555;
+  font-style: italic;
+  color: var(--fla-ink-muted);
 }
 
+/* The context sentence is the primary unit of learning, so it reads as a
+   pulled quote rather than a footnote — see the design brief. */
 .entry-context {
-  margin-top: 4px;
-  padding-top: 4px;
-  border-top: 1px dashed #eee;
-  color: #999;
-  font-size: 12px;
-  font-style: italic;
+  margin-top: var(--fla-sm);
+  padding: 6px var(--fla-sm);
+  border-left: 2px solid var(--fla-accent-line);
+  background: var(--fla-accent-tint);
+  border-radius: 0 var(--fla-r-sm) var(--fla-r-sm) 0;
+  font-family: var(--fla-serif);
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--fla-ink-muted);
 }
 
 .entry-origin {
-  margin-top: 4px;
-  color: #999;
+  margin-top: 6px;
+  color: var(--fla-ink-muted);
   font-size: 11px;
 }
 
 .lang {
   font-size: 9px;
-  text-transform: uppercase;
-  color: #999;
-  min-width: 18px;
   font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fla-ink-muted);
+  background: var(--fla-variant);
+  border-radius: 3px;
+  padding: 2px 4px;
+  flex: 0 0 auto;
+  align-self: flex-start;
+  position: relative;
+  top: 3px;
+  font-family: var(--fla-sans);
 }
 
 .speak {
-  padding: 2px 6px;
+  flex: 0 0 auto;
+  padding: 2px 8px;
   font-size: 10px;
-  background: #f5f5f5;
-  border: 1px solid #ddd;
-  border-radius: 3px;
+  font-family: var(--fla-sans);
+  background: var(--fla-sunken);
+  color: var(--fla-ink-muted);
+  border: 1px solid transparent;
+  border-radius: 999px;
   cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.speak:hover {
+  background: var(--fla-raised);
+  color: var(--fla-ink);
 }
 
 .delete {
   position: absolute;
-  top: 4px;
-  right: 4px;
+  top: 6px;
+  right: 6px;
   background: transparent;
   border: none;
   cursor: pointer;
-  color: #aaa;
+  /* Quiet until the card is hovered — but by *colour*, never by opacity:
+     fading an already-faint ink against the card drops it under 3:1. */
+  color: var(--fla-ink-faint);
   font-size: 16px;
-  padding: 0 6px;
+  line-height: 1;
+  padding: 2px 6px;
+  transition: color 0.12s;
+}
+
+.entry:hover .delete {
+  color: var(--fla-ink);
 }
 
 .delete:hover {
-  color: #c62828;
+  color: var(--fla-error);
 }
 
 .empty {
-  color: #999;
+  color: var(--fla-ink-faint);
   text-align: center;
-  padding: 20px;
+  padding: var(--fla-xl) var(--fla-md);
   list-style: none;
+  font-family: var(--fla-serif);
+  font-size: 16px;
+  font-style: italic;
+  color: var(--fla-ink-muted);
 }
+
+/* -----------------------------
+   Collections and manual entry
+   ----------------------------- */
+
+/* Sits directly under the last word, so adding one reads as extending the
+   workbook rather than as a toolbar action. */
+.add-word-tile {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: var(--fla-gutter);
+  margin-bottom: var(--fla-sm);
+  border: 1px dashed var(--fla-line-strong);
+  border-radius: var(--fla-r);
+  background: transparent;
+  color: var(--fla-ink-muted);
+  font-family: var(--fla-sans);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.add-word-tile:hover {
+  background: var(--fla-sunken);
+  border-color: var(--fla-ink-faint);
+  border-style: solid;
+  color: var(--fla-ink);
+}
+
+.add-word-tile__plus {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.add-word-tile[hidden] {
+  display: none;
+}
+
+/* Sits in the rail's pinned footer alongside the theme toggle. */
+.rail-btn {
+  padding: 6px var(--fla-sm);
+  border: 1px dashed var(--fla-line-strong);
+  border-radius: var(--fla-r-sm);
+  background: transparent;
+  color: var(--fla-ink-muted);
+  font-family: var(--fla-sans);
+  font-size: 12px;
+  cursor: pointer;
+  flex: 0 0 auto;
+  text-align: left;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.rail-btn:hover {
+  background: var(--fla-sunken);
+  border-color: var(--fla-ink-faint);
+  border-style: solid;
+  color: var(--fla-ink);
+}
+
+.add-word {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fla-sm);
+  margin-bottom: var(--fla-gutter);
+  padding: var(--fla-gutter);
+  background: var(--fla-card);
+  border: 1px solid var(--fla-line);
+  border-radius: var(--fla-r);
+  box-shadow: var(--fla-shadow-sm);
+}
+
+.add-word[hidden] {
+  display: none;
+}
+
+.add-word__field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--fla-ink-muted);
+  margin: 0;
+}
+
+.add-word__field em {
+  font-style: normal;
+  color: var(--fla-ink-faint);
+}
+
+.add-word__field input,
+.add-word__field select {
+  padding: 6px 9px;
+  border: 1px solid var(--fla-line-strong);
+  border-radius: var(--fla-r-sm);
+  background: var(--fla-bg);
+  color: var(--fla-ink);
+  font-family: inherit;
+  font-size: 13px;
+}
+
+/* The word itself is French, and it's the field that matters most here. */
+#addWordSource {
+  font-family: var(--fla-serif);
+  font-size: 16px;
+}
+
+.add-word__field input:focus,
+.add-word__field select:focus {
+  outline: none;
+  border-color: var(--fla-primary);
+}
+
+.add-word__field input::placeholder {
+  color: var(--fla-ink-faint);
+}
+
+.add-word__actions {
+  display: flex;
+  gap: 6px;
+  margin-top: var(--fla-xs);
+}
+
+.add-word__actions button {
+  padding: 7px 12px;
+  border-radius: var(--fla-r-sm);
+  font-family: var(--fla-sans);
+  font-size: 13px;
+  cursor: pointer;
+  background: var(--fla-primary);
+  border: 1px solid var(--fla-primary);
+  color: var(--fla-on-primary);
+  font-weight: 500;
+}
+
+.add-word__actions button:hover {
+  background: var(--fla-primary-soft);
+  border-color: var(--fla-primary-soft);
+}
+
+.add-word__actions button:disabled {
+  background: transparent;
+  border-color: var(--fla-line);
+  border-style: dashed;
+  color: var(--fla-ink-disabled);
+  cursor: not-allowed;
+}
+
+.add-word__actions button.secondary,
+.add-word__actions button.secondary:hover {
+  background: transparent;
+  border-color: var(--fla-line-strong);
+  color: var(--fla-ink-muted);
+  font-weight: 400;
+}
+
+.add-word__error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--fla-error);
+}
+
+.add-word__error[hidden] {
+  display: none;
+}
+
+/* -----------------------------
+   Conjugation
+   ----------------------------- */
 
 .verb-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
+  gap: var(--fla-sm);
+  margin-bottom: var(--fla-md);
+  padding-bottom: var(--fla-sm);
+  border-bottom: 1px solid var(--fla-line);
 }
 
 .verb-header h2 {
   margin: 0;
-  font-size: 20px;
-  color: #4a90e2;
+  font-family: var(--fla-serif);
+  font-size: 26px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--fla-heading);
 }
 
 .tense {
-  margin-bottom: 16px;
+  margin-bottom: var(--fla-md);
 }
 
 .tense h3 {
-  font-size: 12px;
+  font-family: var(--fla-sans);
+  font-size: 11px;
+  font-weight: 600;
   text-transform: uppercase;
-  color: #666;
-  margin: 0 0 4px;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.05em;
+  color: var(--fla-ink-muted);
+  margin: 0 0 var(--fla-xs);
 }
 
 .tense table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-family: var(--fla-serif);
+  font-size: 15px;
 }
 
 .tense td {
-  padding: 4px 6px;
-  border-bottom: 1px solid #f0f0f0;
+  padding: 5px 6px;
+  border-bottom: 1px solid var(--fla-line);
 }
 
 .pronoun {
-  color: #999;
-  width: 60px;
+  color: var(--fla-ink-faint);
+  width: 62px;
   font-style: italic;
 }
 
+/* -----------------------------
+   Messages
+   ----------------------------- */
+
 .error {
-  color: #c62828;
-  padding: 10px;
-  background: #fef5f5;
-  border-radius: 4px;
+  color: var(--fla-error);
+  padding: var(--fla-sm) var(--fla-gutter);
+  background: var(--fla-error-tint);
+  border-radius: var(--fla-r-sm);
 }
 
 .hint {
-  color: #999;
-  font-style: italic;
+  color: var(--fla-ink-muted);
+  font-size: 13px;
+  line-height: 1.6;
 }
+
+/* -----------------------------
+   Settings
+   ----------------------------- */
 
 #settings .row {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: var(--fla-sm);
   padding: 6px 0;
   font-size: 13px;
+}
+
+#settings label.row {
+  cursor: pointer;
+}
+
+/* The four gender/plural rows are sub-settings of the master colour-coding
+   switch above them — they're exactly the rows carrying a .controls group. */
+#settings .reading-aids .row:has(.controls) {
+  padding-left: var(--fla-gutter);
+  color: var(--fla-ink-muted);
 }
 
 #settings .row .controls {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--fla-sm);
+}
+
+#settings select {
+  padding: 4px 6px;
+  border: 1px solid var(--fla-line-strong);
+  border-radius: var(--fla-r-sm);
+  background: var(--fla-card);
+  color: var(--fla-ink);
+  font-family: inherit;
+  font-size: 12px;
+}
+
+#settings input[type="checkbox"] {
+  accent-color: var(--fla-primary);
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
 }
 
 #settings input[type="color"] {
-  width: 40px;
-  height: 24px;
+  width: 34px;
+  height: 22px;
   padding: 0;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  border: 1px solid var(--fla-line-strong);
+  border-radius: var(--fla-r-sm);
+  background: var(--fla-card);
   cursor: pointer;
 }
 
 #settings section {
-  margin-bottom: 12px;
+  margin-bottom: var(--fla-md);
+  padding-bottom: var(--fla-gutter);
+  border-bottom: 1px solid var(--fla-line);
+}
+
+#settings section:last-child {
+  border-bottom: none;
 }
 
 #settings .hint {
   font-style: normal;
-  border-top: 1px solid #eee;
-  padding-top: 8px;
-  margin-bottom: 12px;
+  margin: 0 0 var(--fla-gutter);
+}
+
+#settings #readingLevel {
+  font-family: var(--fla-sans);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fla-ink-muted);
+  background: var(--fla-variant);
+  border-radius: var(--fla-r-sm);
+  padding: 2px 6px;
+}
+
+/* Inline action inside a settings row (Tutorial → Replay). Sized to the text so
+   it reads as part of the row rather than as a page-level button. */
+.link-btn {
+  width: auto;
+  padding: 4px 10px;
+  border: 1px solid var(--fla-line-strong);
+  border-radius: var(--fla-r-sm);
+  background: var(--fla-card);
+  color: var(--fla-ink-muted);
+  font-family: var(--fla-sans);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.link-btn:hover {
+  background: var(--fla-raised);
+  border-color: var(--fla-ink-faint);
+  color: var(--fla-ink);
 }
 
 /* -----------------------------
@@ -333,17 +891,25 @@ body {
 #practiceInput {
   width: 100%;
   box-sizing: border-box;
-  padding: 6px 8px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 13px;
-  font-family: inherit;
+  padding: var(--fla-sm) 10px;
+  border: 1px solid var(--fla-line-strong);
+  border-radius: var(--fla-r-sm);
+  background: var(--fla-card);
+  color: var(--fla-ink);
+  font-family: var(--fla-serif);
+  font-size: 15px;
+  line-height: 1.55;
   resize: vertical;
-  margin-bottom: 8px;
+  margin-bottom: var(--fla-sm);
+}
+
+#practiceInput:focus {
+  outline: none;
+  border-color: var(--fla-primary);
 }
 
 #practiceLines {
-  margin-bottom: 12px;
+  margin-bottom: var(--fla-gutter);
   max-height: 45vh;
   overflow-y: auto;
 }
@@ -352,23 +918,27 @@ body {
   display: flex;
   gap: 6px;
   align-items: baseline;
-  padding: 6px 8px;
-  border-radius: 4px;
-  font-size: 13px;
-  border-left: 3px solid transparent;
+  padding: 7px 10px;
+  border-radius: 0 var(--fla-r-sm) var(--fla-r-sm) 0;
+  font-family: var(--fla-serif);
+  font-size: 15px;
+  line-height: 1.5;
+  border-left: 2px solid transparent;
+  color: var(--fla-ink-muted);
 }
 
 .pline.current {
-  background: #f0f6ff;
-  border-left-color: #4a90e2;
+  background: var(--fla-primary-tint);
+  border-left-color: var(--fla-primary);
+  color: var(--fla-ink);
 }
 
 .pline.done .pline-text {
-  color: #2ea44f;
+  color: var(--fla-accent);
 }
 
 .pline.failed .pline-text {
-  color: #999;
+  color: var(--fla-ink-faint);
 }
 
 .pline-role {
@@ -377,22 +947,29 @@ body {
 
 .pline-lang {
   flex: 0 0 auto;
-  font-size: 10px;
+  font-family: var(--fla-sans);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #999;
-  border: 1px solid #ddd;
+  color: var(--fla-ink-muted);
+  background: var(--fla-variant);
+  border: none;
   border-radius: 3px;
-  padding: 0 3px;
+  padding: 2px 4px;
 }
 
 .pline-score {
-  font-size: 11px;
-  color: #999;
+  font-family: var(--fla-sans);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fla-ink-muted);
 }
 
 .pline-gloss {
-  font-size: 11px;
-  color: #999;
+  font-family: var(--fla-sans);
+  font-size: 12px;
+  color: var(--fla-ink-muted);
   font-style: italic;
 }
 
@@ -401,46 +978,53 @@ body {
   display: flex;
   align-items: baseline;
   gap: 5px;
-  margin-top: 3px;
-  font-size: 12px;
-  color: #2ea44f;
+  margin-top: var(--fla-xs);
+  font-family: var(--fla-serif);
+  font-size: 14px;
+  color: var(--fla-accent);
 }
 
 .pline-play {
   flex: 0 0 auto;
-  padding: 0 5px;
-  border: 1px solid #ddd;
-  background: white;
-  border-radius: 3px;
+  padding: 1px 7px;
+  border: 1px solid transparent;
+  background: var(--fla-sunken);
+  border-radius: 999px;
   cursor: pointer;
+  font-family: var(--fla-sans);
   font-size: 10px;
-  color: #4a90e2;
+  color: var(--fla-ink-muted);
   line-height: 1.5;
 }
 
 .pline-play:hover {
-  background: #f0f6ff;
+  background: var(--fla-raised);
+  color: var(--fla-ink);
 }
 
 .pinterim {
+  font-family: var(--fla-serif);
+  font-size: 14px;
   font-style: italic;
-  color: #999;
+  color: var(--fla-ink-faint);
   min-height: 1.4em;
 }
 
 .ppass {
-  color: #2ea44f;
+  color: var(--fla-accent);
   font-weight: 600;
 }
 
 .pfail {
-  color: #c62828;
+  color: var(--fla-error);
   font-weight: 600;
 }
 
 .pdiff {
-  margin: 6px 0;
-  line-height: 1.7;
+  margin: var(--fla-sm) 0;
+  font-family: var(--fla-serif);
+  font-size: 15px;
+  line-height: 1.8;
 }
 
 .dw {
@@ -449,27 +1033,29 @@ body {
 }
 
 .dw.ok {
-  color: #2ea44f;
+  color: var(--fla-accent);
 }
 
 .dw.near {
-  color: #a86400;
-  background: #fff6e5;
-  text-decoration: underline wavy #e0a030;
+  color: var(--fla-warn);
+  background: var(--fla-warn-tint);
+  text-decoration: underline wavy var(--fla-warn-line);
 }
 
 .dw.miss {
-  color: #c62828;
-  background: #fdecea;
-  text-decoration: underline wavy #c62828;
+  color: var(--fla-error);
+  background: var(--fla-error-tint);
+  text-decoration: underline wavy var(--fla-error);
 }
 
 /* Live match while the user is still speaking — matched words only, no red:
    a word not yet said isn't a word said wrong. */
 .plive {
-  margin: 6px 0;
-  line-height: 1.7;
-  min-height: 1.7em;
+  margin: var(--fla-sm) 0;
+  font-family: var(--fla-serif);
+  font-size: 15px;
+  line-height: 1.8;
+  min-height: 1.8em;
 }
 
 .lw {
@@ -479,13 +1065,15 @@ body {
 }
 
 .lw.ok {
-  color: #2ea44f;
-  background: #eaf7ee;
+  color: var(--fla-accent-deep);
+  background: var(--fla-accent-tint);
   font-weight: 600;
 }
 
+/* Not yet spoken. Still has to be readable — it's the text the user is
+   reading off to speak — so it stays at the faint ink rather than fading. */
 .lw.pending {
-  color: #bbb;
+  color: var(--fla-ink-faint);
 }
 
 #practiceWave {
@@ -496,34 +1084,39 @@ body {
 }
 
 .mic-hint {
-  font-size: 11px;
-  color: #a86400;
-  background: #fff6e5;
-  border-radius: 4px;
-  padding: 4px 6px;
-  margin-bottom: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--fla-warn);
+  background: var(--fla-warn-tint);
+  border-radius: var(--fla-r-sm);
+  padding: 6px var(--fla-sm);
+  margin-bottom: var(--fla-sm);
 }
 
 .psummary {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
-  margin: 8px 0;
+  font-family: var(--fla-serif);
+  font-size: 14px;
+  margin: var(--fla-sm) 0;
 }
 
 .psummary td {
-  border-bottom: 1px solid #f0f0f0;
-  padding: 4px 6px;
+  border-bottom: 1px solid var(--fla-line);
+  padding: 5px 6px;
 }
 
 .psummary td:last-child {
   text-align: right;
   white-space: nowrap;
-  color: #999;
+  font-family: var(--fla-sans);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fla-ink-faint);
 }
 
 #practiceResult .toolbar {
-  margin-top: 10px;
+  margin-top: var(--fla-gutter);
 }
 
 /* -----------------------------
@@ -533,11 +1126,11 @@ body {
 .modal {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.35);
+  background: rgba(4, 22, 39, 0.45);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px;
+  padding: var(--fla-md);
   z-index: 10;
 }
 
@@ -546,23 +1139,27 @@ body {
 }
 
 .modal-card {
-  background: white;
-  border-radius: 8px;
-  padding: 16px;
+  background: var(--fla-card);
+  border: 1px solid var(--fla-line);
+  border-radius: var(--fla-r-lg);
+  padding: var(--fla-md);
   max-width: 300px;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--fla-shadow);
 }
 
 .modal-card h3 {
-  margin: 0 0 8px;
-  font-size: 15px;
+  margin: 0 0 var(--fla-sm);
+  font-family: var(--fla-serif);
+  font-size: 19px;
+  font-weight: 500;
+  color: var(--fla-heading);
 }
 
 .modal-card p {
-  margin: 0 0 12px;
-  font-size: 12px;
-  line-height: 1.5;
-  color: #555;
+  margin: 0 0 var(--fla-gutter);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--fla-ink-muted);
 }
 
 .modal-card .toolbar {
@@ -570,6 +1167,270 @@ body {
 }
 
 .modal-card button.secondary {
-  border-color: #ddd;
-  color: #777;
+  background: transparent;
+  border-color: var(--fla-line);
+  color: var(--fla-ink-faint);
+  font-weight: 400;
+}
+
+.modal-card button.secondary:hover {
+  background: var(--fla-sunken);
+  border-color: var(--fla-line-strong);
+  color: var(--fla-ink-muted);
+}
+
+
+/* -----------------------------
+   Flip card faces — mechanics and the chevron live in lib/flip.css
+   ----------------------------- */
+
+.entry-back__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--fla-sm);
+  margin-bottom: var(--fla-sm);
+  padding-bottom: var(--fla-xs);
+  border-bottom: 1px solid var(--fla-line);
+}
+
+.entry-back__word {
+  font-family: var(--fla-serif);
+  font-size: 18px;
+  color: var(--fla-heading);
+}
+
+.entry-back__close {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border: 1px solid var(--fla-line);
+  border-radius: var(--fla-r-sm);
+  background: transparent;
+  color: var(--fla-ink-muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.entry-back__close:hover {
+  background: var(--fla-sunken);
+  color: var(--fla-ink);
+}
+
+.entry--back .tense {
+  margin-bottom: var(--fla-sm);
+}
+
+.entry--back .tense table {
+  font-size: 14px;
+}
+
+.entry--back .tense td {
+  padding: 3px 6px;
+}
+
+.entry-back__note {
+  margin: 0 0 var(--fla-sm);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--fla-ink-muted);
+}
+
+.entry-back__more {
+  padding: 5px 10px;
+  border: 1px solid var(--fla-line-strong);
+  border-radius: var(--fla-r-sm);
+  background: transparent;
+  color: var(--fla-ink-muted);
+  font-family: var(--fla-sans);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.entry-back__more:hover {
+  background: var(--fla-sunken);
+  border-color: var(--fla-ink-faint);
+  color: var(--fla-ink);
+}
+
+
+
+/* -----------------------------
+   Workbook context menu + drag reordering
+   ----------------------------- */
+
+/* content/popup.css defines fla-bubble-in, but that stylesheet is only injected
+   into host pages — the side panel never loads it, so the menu needs its own
+   copy of the same motion. */
+@keyframes fla-pop-in {
+  from {
+    opacity: 0;
+    scale: 0.92;
+  }
+  60% {
+    scale: 1.02;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+.ctx-menu {
+  position: fixed;
+  z-index: 20;
+  min-width: 130px;
+  max-width: 260px;
+  padding: var(--fla-xs);
+  background: var(--fla-overlay);
+  border: 1px solid var(--fla-line);
+  border-radius: var(--fla-r);
+  box-shadow: var(--fla-shadow);
+  animation: fla-pop-in 0.14s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+  transform-origin: top left;
+}
+
+.ctx-menu[hidden] {
+  display: none;
+}
+
+.ctx-menu button {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: var(--fla-r-sm);
+  background: transparent;
+  color: var(--fla-ink);
+  font-family: var(--fla-sans);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ctx-menu button:hover {
+  background: var(--fla-sunken);
+}
+
+/* Items that explain themselves (the export formats) stack a name over a
+   description; the workbook menu's plain items are unaffected. */
+.ctx-menu__name {
+  display: block;
+  font-size: 13px;
+}
+
+.ctx-menu__desc {
+  display: block;
+  margin-top: 1px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--fla-ink-muted);
+}
+
+.ctx-menu button:has(.ctx-menu__desc) {
+  padding: 8px 10px;
+}
+
+.ctx-menu button.danger:hover {
+  background: var(--fla-error-tint);
+  color: var(--fla-error);
+}
+
+/* The grip: two columns of dots, drawn with a repeating radial-gradient so
+   there's no extra markup and it scales cleanly. Visible at rest — the whole
+   point is that you can tell the rows move — and stronger on hover. */
+.workbook-drag {
+  position: absolute;
+  left: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 7px;
+  height: 15px;
+  cursor: grab;
+  color: var(--fla-line-strong);
+  background-image: radial-gradient(currentColor 1.1px, transparent 1.3px);
+  background-size: 4px 5px;
+  background-position: 0 1px;
+  transition: color 0.12s;
+  touch-action: none; /* let pointermove drive the drag instead of scrolling */
+}
+
+.workbook-item:hover .workbook-drag {
+  color: var(--fla-ink-faint);
+}
+
+/* Lifted: follows the pointer, casts a shadow, and must NOT animate its own
+   transform or it would lag behind the cursor. */
+.workbook-item.is-dragging {
+  z-index: 2;
+  background: var(--fla-card);
+  box-shadow: var(--fla-shadow);
+  border-radius: var(--fla-r-sm);
+  cursor: grabbing;
+  transition: none;
+}
+
+.workbook-item.is-dragging .workbook-drag {
+  cursor: grabbing;
+  color: var(--fla-ink-muted);
+}
+
+/* The rows getting out of the way. Applied only while a drag is live, so a
+   normal re-render doesn't animate every row into place. */
+#workbookList.is-reordering .workbook-item {
+  transition: transform 0.18s cubic-bezier(0.4, 0.2, 0.2, 1);
+}
+
+#workbookList.is-reordering .workbook-item.is-dragging {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ctx-menu {
+    animation: none;
+  }
+}
+
+/* A settings row whose master switch is off: still readable, clearly inert. */
+.row.is-disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.row.is-disabled input {
+  cursor: default;
+}
+
+/* Inline "why isn't this working here?" marker, e.g. the reading aids being
+   web-pages-only. A real focusable element, not a bare glyph, so the
+   explanation in its title/aria-label is reachable by keyboard too. */
+.info {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 5px;
+  border: 1px solid var(--fla-line-strong);
+  border-radius: 50%;
+  color: var(--fla-ink-faint);
+  font-family: var(--fla-sans);
+  font-size: 9px;
+  font-style: italic;
+  font-weight: 700;
+  line-height: 1;
+  cursor: help;
+  vertical-align: 1px;
+}
+
+.info:hover,
+.info:focus-visible {
+  border-color: var(--fla-ink-faint);
+  color: var(--fla-ink-muted);
+}
+
+/* A note attached to the row above it, not a section of its own. */
+.hint--sub {
+  margin-top: 2px;
+  margin-bottom: var(--fla-sm);
+  font-size: 11px;
 }

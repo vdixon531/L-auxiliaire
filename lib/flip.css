@@ -1,0 +1,124 @@
+/* Flip-card mechanics, shared by the side panel's saved-word cards and the
+ * welcome page's demo card. Only the mechanics and the chevron live here — what
+ * each face *contains* is the caller's business, so sidepanel.css and
+ * welcome.css style their own faces.
+ *
+ * Pairs with lib/flip.js, which owns the height measurement.
+ */
+
+/* Every rule here is scoped through .entry-flip on purpose.
+ *
+ * This file is linked BEFORE each page's own stylesheet, and those define
+ * `.entry` at the same specificity — so an unscoped `.entry--back { position:
+ * absolute }` loses to a later `.entry { position: relative }` and the back
+ * face drops into normal flow *inside* the card instead of sitting behind it.
+ * That is exactly what happened, twice (the chevron's padding was the first).
+ * Scoping puts these at (0,2,0) so a bare `.entry` rule can't reach them.
+ */
+
+.entry-flip {
+  position: relative;
+  /* announceEntry() scrolls a card into view with block: "nearest", which stops
+     as soon as the card's edge reaches the viewport — but the tabs bar is
+     position: sticky over the top of that area, so a card that just cleared the
+     edge was still half-covered by it. scroll-margin reserves the sticky bar's
+     height (~41px) plus a little breathing room, and the same at the bottom for
+     the floating appearance toggle. */
+  scroll-margin-top: 58px;
+  scroll-margin-bottom: 64px;
+  /* Cards space themselves here, not on .entry — the faces must not carry
+     margin, or the absolutely-positioned back would be offset from the front. */
+  margin-bottom: var(--fla-sm);
+  /* The back face is absolutely positioned, so the natural height here is the
+     front's. Flipping sets an explicit height (lib/flip.js) and this carries
+     the card between the two — without it a tall conjugation table would be
+     clipped by a card sized for two lines of text. */
+  transition: height 0.45s cubic-bezier(0.4, 0.2, 0.2, 1);
+}
+
+.entry-flip .entry-faces {
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.5s cubic-bezier(0.4, 0.2, 0.2, 1);
+}
+
+.entry-flip.is-flipped .entry-faces {
+  transform: rotateY(180deg);
+}
+
+.entry-flip .entry--front,
+.entry-flip .entry--back {
+  backface-visibility: hidden;
+  margin: 0;
+}
+
+.entry-flip .entry--front {
+  cursor: pointer;
+  /* Clears the chevron on the right edge. */
+  padding-right: 34px;
+}
+
+.entry-flip .entry--back {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  box-sizing: border-box;
+  transform: rotateY(180deg);
+  /* Belt and braces. backface-visibility alone hides the back only while the
+     3D context survives — any ancestor that flattens it (overflow, opacity,
+     filter) would drop an empty card straight on top of the front. Gating on
+     the flip state can't fail that way; the delay swaps the faces at the
+     halfway point of the rotation. */
+  visibility: hidden;
+  transition: visibility 0s linear 0.25s;
+}
+
+.entry-flip.is-flipped .entry--back {
+  visibility: visible;
+}
+
+.entry-flip.is-flipped .entry--front {
+  visibility: hidden;
+  transition: visibility 0s linear 0.25s;
+}
+
+/* A chevron drawn from two borders rather than set as a glyph — it stays
+   crisp at any size and doesn't depend on a font having the character. */
+.fla-chev {
+  display: block;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid currentColor;
+  border-top: 2px solid currentColor;
+  transform: rotate(45deg);
+}
+
+.fla-chev--left {
+  transform: rotate(-135deg);
+}
+
+/* The affordance: a ">" on the centre-right edge, quiet until the card is
+   hovered so a list of cards doesn't turn into a column of arrows. */
+.entry-flip-hint {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--fla-line-strong);
+  transition: color 0.12s, right 0.12s;
+  pointer-events: none;
+}
+
+.entry--front:hover .entry-flip-hint {
+  color: var(--fla-ink-faint);
+  right: 9px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entry-flip,
+  .entry-faces,
+  .entry-flip-hint {
+    transition: none;
+  }
+}

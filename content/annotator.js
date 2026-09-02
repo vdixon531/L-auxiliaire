@@ -1,8 +1,13 @@
 // annotator.js
-// Reading aids: gender/plural color-coding, frequency dimming, cognate
-// underlining, and a per-page CEFR-ish reading-level estimate — all computed
-// from words found on the page, looked up against the bundled lexicon via one
-// batched LOOKUP_WORDS message per scan pass. Runs alongside
+// Reading aids: gender/plural color-coding, plus a per-page CEFR-ish
+// reading-level estimate — both computed from words found on the page, looked
+// up against the bundled lexicon via one batched LOOKUP_WORDS message per scan
+// pass.
+//
+// Frequency dimming and cognate underlining were shelved (deliberately, not
+// dropped): the toggles, the classes and the CSS are gone, but LOOKUP_WORDS
+// still returns freqRank and cognates, and data/cognates.json is still bundled
+// — so bringing either back is a UI change, not a data one. Runs alongside
 // content-script.js as an independent content script (classic script, not a
 // module — content scripts aren't declared as ES modules); talks to it only
 // indirectly via the DOM, never shares state.
@@ -12,7 +17,6 @@ const SKIP_TAGS = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEXTAREA", "INPUT", "
 const SVG_NS = "http://www.w3.org/2000/svg";
 const CHUNK_SIZE = 300; // text nodes per idle slice, so a huge page never blocks synchronously
 const MUTATION_DEBOUNCE_MS = 500;
-const DIM_FREQ_RANK_THRESHOLD = 1000; // README: "common words (top 1000) fade"
 
 // CEFR banding is a frequency-rank heuristic only (v1 deliberately ignores
 // known-vocabulary/review history — see CLAUDE.md's message contract note).
@@ -60,8 +64,14 @@ function applyConfigToDocument(config = {}) {
   root.classList.toggle("fla-cat-feminine-on", categoriesEnabled.feminine);
   root.classList.toggle("fla-cat-plural-on", categoriesEnabled.plural);
   root.classList.toggle("fla-cat-neutral-on", categoriesEnabled.neutral);
-  root.classList.toggle("fla-dimming-on", !!config.frequencyDimming);
-  root.classList.toggle("fla-cognates-on", !!config.cognateHighlighting);
+
+  // Light/dark for the translation bubble. The bubble can't use lib/theme.css
+  // (it lives on a host page), so lib/theme-mode.js's data-theme attribute is
+  // mirrored here as a class instead — same config.themeMode, same three
+  // states, and "system" sets neither class so content/popup.css's
+  // prefers-color-scheme query takes back over.
+  root.classList.toggle("fla-theme-dark", config.themeMode === "dark");
+  root.classList.toggle("fla-theme-light", config.themeMode === "light");
 }
 
 chrome.storage.local.get("config").then(({ config }) => applyConfigToDocument(config));
@@ -149,7 +159,7 @@ async function processChunk(nodes) {
       const key = word.toLowerCase();
       wordCache.set(key, {
         entry: result?.entries?.[word] || null,
-        cognate: result?.cognates?.[word] || null
+        cognate: null // cognate highlighting is shelved; LOOKUP_WORDS still returns them
       });
     }
   }
@@ -170,18 +180,13 @@ function classesForEntry(entry) {
     else if (entry.gender === "f") classes.push("fla-word--feminine");
     else classes.push("fla-word--neutral");
   }
-  if (entry.freqRank && entry.freqRank <= DIM_FREQ_RANK_THRESHOLD) classes.push("fla-dim");
   return classes;
 }
 
-function buildWordSpan(word, entry, cognate) {
+function buildWordSpan(word, entry) {
   const span = document.createElement("span");
   span.className = classesForEntry(entry).join(" ");
   span.textContent = word;
-  if (cognate) {
-    span.classList.add("fla-cognate");
-    span.title = `Cognate of English "${cognate}"`;
-  }
   return span;
 }
 
@@ -193,7 +198,7 @@ function wrapNode(node, matches) {
     if (start > cursor) frag.appendChild(document.createTextNode(text.slice(cursor, start)));
     const cached = wordCache.get(word.toLowerCase());
     const entry = cached?.entry || null;
-    frag.appendChild(buildWordSpan(word, entry, cached?.cognate || null));
+    frag.appendChild(buildWordSpan(word, entry));
     recordCefrSample(entry);
     cursor = end;
   }
@@ -220,7 +225,11 @@ function applyToNodes(matchesByNode) {
 
 function recordCefrSample(entry) {
   if (cefrSamples.length >= CEFR_SAMPLE_CAP) return;
-  cefrSamples.push(entry ? entry.freqRank : OOV_SENTINEL_RANK);
+  // A lexicon hit without a freqRank would push `undefined`, which poisons the
+  // numeric sort below and lands every page on C2. Treat it as out-of-vocab,
+  // which is what an unranked word effectively is.
+  const rank = entry && typeof entry.freqRank === "number" ? entry.freqRank : OOV_SENTINEL_RANK;
+  cefrSamples.push(rank);
 }
 
 function scheduleCefrRecompute() {
@@ -233,7 +242,27 @@ function recomputeCefrLevel() {
   const sorted = [...cefrSamples].sort((a, b) => a - b);
   const idx = Math.min(sorted.length - 1, Math.floor(sorted.length * CEFR_PERCENTILE));
   const rankAtPercentile = sorted[idx];
-  cachedLevel = CEFR_BANDS.find(([max]) => rankAtPercentile <= max)?.[1] || "C2";
+  const level = CEFR_BANDS.find(([max]) => rankAtPercentile <= max)?.[1] || "C2";
+  if (level === cachedLevel) return;
+  cachedLevel = level;
+  publishLevel(level);
+}
+
+// The readout used to be pull-only (GET_PAGE_LEVEL), and both callers asked
+// exactly once — on popup open, and on entering the Settings tab. Scanning is
+// chunked across idle callbacks and the recompute above is debounced, so that
+// single question almost always arrived before any level existed: the label
+// said "Analyzing…" and nothing ever asked again.
+//
+// Pushing instead fixes both halves — it populates when the answer is ready,
+// and it updates when a rescan changes the estimate. The service worker files
+// it under this tab's id (which only it knows) for the panel to read.
+// GET_PAGE_LEVEL is kept as a fallback; the contract is additive.
+function publishLevel(level) {
+  chrome.runtime.sendMessage({ type: "PAGE_LEVEL", level }).catch(() => {
+    // No receiver (worker asleep, extension reloading) — the next rescan
+    // republishes, and the pull path still works.
+  });
 }
 
 // -----------------------------

@@ -3,29 +3,50 @@
   <head>
     <meta charset="utf-8" />
     <title>L'auxiliaire — enable microphone</title>
+    <link rel="stylesheet" href="../lib/theme.css" />
     <style>
       body {
-        font-family: system-ui, sans-serif;
         max-width: 480px;
         margin: 80px auto;
-        padding: 0 16px;
-        color: #333;
+        padding: 0 var(--fla-md);
       }
-      h1 { font-size: 20px; }
-      p { line-height: 1.5; }
+      h1 {
+        font-family: var(--fla-serif);
+        font-size: 28px;
+        font-weight: 500;
+        letter-spacing: -0.01em;
+        color: var(--fla-primary);
+      }
+      p {
+        line-height: 1.65;
+        color: var(--fla-ink-muted);
+      }
       button {
-        font-size: 16px;
+        font-family: var(--fla-sans);
+        font-size: 15px;
         padding: 10px 20px;
-        border: none;
-        border-radius: 6px;
-        background: #4a90e2;
-        color: #fff;
+        border: 1px solid var(--fla-primary);
+        border-radius: var(--fla-r-sm);
+        background: var(--fla-primary);
+        color: var(--fla-on-primary);
+        font-weight: 500;
         cursor: pointer;
+        transition: background 0.12s, border-color 0.12s;
       }
-      button:disabled { background: #999; cursor: default; }
+      button:hover {
+        background: var(--fla-primary-soft);
+        border-color: var(--fla-primary-soft);
+      }
+      button:disabled,
+      button:disabled:hover {
+        background: var(--fla-sunken);
+        border-color: var(--fla-line);
+        color: var(--fla-ink-faint);
+        cursor: default;
+      }
       #status { min-height: 1.5em; }
-      #status.ok { color: #2ea44f; }
-      #status.err { color: #c62828; }
+      #status.ok { color: var(--fla-accent); }
+      #status.err { color: var(--fla-error); }
     </style>
   </head>
   <body>

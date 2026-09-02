@@ -10,6 +10,7 @@ import { normalizeUrl } from "../lib/normalize-url.js";
 import { dueAtForBox } from "./srs.js";
 import { lookupWord, annotateWords } from "./lexicon.js";
 import { sweepStaleHandoffs } from "../lib/pdf-handoff.js";
+import { getTourState, markWelcomeOpened } from "../lib/tour.js";
 
 const STORAGE_KEY_VOCAB = "vocab";
 const STORAGE_KEY_CARDS = "cards";
@@ -147,9 +148,36 @@ async function saveWord(rawEntry) {
     gender: rawEntry.gender ?? lexEntry?.gender,
     plural: rawEntry.plural ?? (lexEntry ? lexEntry.number === "p" : undefined)
   };
+  const list = vocab[url] || [];
+
+  // One entry per word per workbook. The dedupe key is the CARD id (the lemma),
+  // not the surface form, because that is already this project's definition of
+  // "the same word" — "parle" and "parler" resolve to one card, so listing both
+  // in one collection is the same word twice.
+  //
+  // Saving a word that's already here refreshes it rather than refusing: the
+  // newest translation and context sentence win, the entry keeps its id (so
+  // cards[].occurrenceIds stays valid), and it moves to the top of the list by
+  // savedAt. The caller gets `duplicate: true` so it can say so.
+  const existing = list.find((v) => v.cardId === lemma);
+  if (existing) {
+    Object.assign(existing, entry, { contextSentence, savedAt, url, id: existing.id, cardId: lemma });
+    const card = cards[lemma];
+    if (card) {
+      card.translation = entry.translation;
+      card.pos = entry.pos;
+      card.gender = entry.gender;
+      card.plural = entry.plural;
+      card.contextSentence = contextSentence;
+    }
+    vocab[url] = list;
+    await chrome.storage.local.set({ [STORAGE_KEY_VOCAB]: vocab, [STORAGE_KEY_CARDS]: cards });
+    const total = Object.values(vocab).reduce((sum, arr) => sum + arr.length, 0);
+    return { ok: true, count: total, duplicate: true, id: existing.id, url };
+  }
+
   const occurrenceId = crypto.randomUUID();
 
-  const list = vocab[url] || [];
   list.push({
     ...entry,
     contextSentence,
@@ -178,7 +206,10 @@ async function saveWord(rawEntry) {
 
   await chrome.storage.local.set({ [STORAGE_KEY_VOCAB]: vocab, [STORAGE_KEY_CARDS]: cards });
   const count = Object.values(vocab).reduce((sum, arr) => sum + arr.length, 0);
-  return { ok: true, count };
+  // id/url identify the entry just written, so a caller can find or remove
+  // exactly what it created — the tutorial uses this to clean up after itself.
+  // The duplicate path above returns the same pair.
+  return { ok: true, count, id: occurrenceId, url };
 }
 
 // One-time migration: hoverModeEnabled used to live as a top-level storage
@@ -409,6 +440,51 @@ chrome.runtime.onMessage.addListener((msg) => {
 });
 
 // -----------------------------
+// Per-tab reading level
+// -----------------------------
+//
+// content/annotator.js pushes its CEFR estimate here whenever it changes; the
+// popup and the panel's Settings tab read it back out of storage and follow it
+// live. The worker is the only party that knows the sender's tab id, which is
+// the key the readers need — a content script can't label its own message.
+//
+// Separate listener from the main router on purpose: this is fire-and-forget,
+// never calls sendResponse, and so has no business in HANDLED_MESSAGE_TYPES
+// (whose handler returns true and holds the channel open for a reply).
+const PAGE_LEVELS_KEY = "pageLevels";
+
+chrome.runtime.onMessage.addListener((msg, sender) => {
+  if (msg?.type !== "PAGE_LEVEL" || !sender.tab?.id) return;
+  const tabId = String(sender.tab.id);
+  chrome.storage.local.get(PAGE_LEVELS_KEY).then(({ [PAGE_LEVELS_KEY]: levels = {} }) => {
+    levels[tabId] = { level: msg.level, at: Date.now() };
+    chrome.storage.local.set({ [PAGE_LEVELS_KEY]: levels });
+  });
+});
+
+// Tabs outlive nothing here — drop a closed tab's entry so this can't grow
+// without bound across a long browsing session.
+chrome.tabs.onRemoved.addListener((tabId) => {
+  chrome.storage.local.get(PAGE_LEVELS_KEY).then(({ [PAGE_LEVELS_KEY]: levels = {} }) => {
+    if (!(String(tabId) in levels)) return;
+    delete levels[String(tabId)];
+    chrome.storage.local.set({ [PAGE_LEVELS_KEY]: levels });
+  });
+});
+
+// A navigation invalidates the old estimate immediately, but the new page's
+// annotator won't have one for a moment — clear rather than show the previous
+// page's level against the new one.
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.status !== "loading") return;
+  chrome.storage.local.get(PAGE_LEVELS_KEY).then(({ [PAGE_LEVELS_KEY]: levels = {} }) => {
+    if (!(String(tabId) in levels)) return;
+    delete levels[String(tabId)];
+    chrome.storage.local.set({ [PAGE_LEVELS_KEY]: levels });
+  });
+});
+
+// -----------------------------
 // PDF handoff sweep (pdf-viewer manual-open flow)
 // -----------------------------
 //
@@ -457,8 +533,26 @@ chrome.commands.onCommand.addListener(async (command) => {
   }
 });
 
+// -----------------------------
+// First run
+// -----------------------------
+
+// Opens welcome/welcome.html once, ever. Guarded on stored state as well as
+// details.reason because reloading an unpacked extension can fire onInstalled
+// with reason "install" again — without the storage check, every dev reload
+// would spawn another welcome tab. The page itself records that the tour ran
+// (welcomeSeenAt); this only records that the tab was opened, so the two can't
+// suppress each other.
+async function maybeOpenWelcome(reason) {
+  if (reason !== "install") return;
+  const state = await getTourState();
+  if (state.welcomeOpenedAt) return;
+  await markWelcomeOpened();
+  await chrome.tabs.create({ url: chrome.runtime.getURL("welcome/welcome.html") });
+}
+
 // Enable side panel to open from action click as fallback
-chrome.runtime.onInstalled.addListener(async () => {
+chrome.runtime.onInstalled.addListener(async (details) => {
   chrome.sidePanel
     .setPanelBehavior({ openPanelOnActionClick: false })
     .catch(() => {});
@@ -471,4 +565,10 @@ chrome.runtime.onInstalled.addListener(async () => {
   await migrateVocabToCards();
   ensureCacheEvictionAlarm();
   ensureHandoffSweepAlarm();
+  // Last: a failure here must never strand the migrations above.
+  try {
+    await maybeOpenWelcome(details?.reason);
+  } catch (err) {
+    console.error("[FLA service worker] welcome tab failed to open", err);
+  }
 });

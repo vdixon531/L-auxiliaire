@@ -14,15 +14,38 @@
 
 import { takeHandoff } from "../lib/pdf-handoff.js";
 
-// Must run before PDFViewerApplication.run() reads defaultUrl — "webviewerloaded"
-// fires synchronously right before run() is called (see vendor/web/viewer.mjs's
-// webViewerLoad()). Without this, the stock build falls back to opening its
-// bundled sample PDF (compressed.tracemonkey-pldi-09.pdf) when no ?file= is
-// present, which we deliberately didn't vendor — we always load via the
-// handoff token instead (see loadHandoff() below).
-document.addEventListener("webviewerloaded", () => {
-  window.PDFViewerApplicationOptions.set("defaultUrl", "");
-});
+// Stops the stock viewer opening its bundled sample PDF
+// (compressed.tracemonkey-pldi-09.pdf), which this project deliberately didn't
+// vendor, so the request 404s. We always load via the handoff token instead.
+//
+// THE PRIMARY DEFENCE IS NOT HERE — it's the empty `file=` that popup.js puts
+// in the viewer URL. viewer.mjs does:
+//
+//     file = params.get("file") ?? AppOptions.get("defaultUrl");
+//
+// and `??` only falls through on null/undefined, so an empty-string `file`
+// means defaultUrl is never consulted at all. `file` then fails the falsy
+// guards in validateFileURL() and `if (file)`, so nothing is opened and no
+// request is made. That has no timing dependency whatsoever.
+//
+// Setting the option here is a fallback for a tab opened with an older URL
+// that has no file= param. It is NOT reliable on its own: viewer.mjs ends with
+//
+//     if (document.readyState === "interactive" || … === "complete") webViewerLoad();
+//
+// and per the HTML spec's "the end" readyState becomes "interactive" *before*
+// deferred/module scripts run — so viewer.mjs calls webViewerLoad() (which
+// dispatches webviewerloaded, then calls run()) during its own evaluation, and
+// this file, whose <script> comes after it, is too late for the event. run() is
+// async, but whether it reaches the defaultUrl read before or after this module
+// executes depends on how many real async boundaries initialize() crosses —
+// which is a race, and one this file lost in practice.
+function suppressStockDefaultPdf() {
+  window.PDFViewerApplicationOptions?.set("defaultUrl", "");
+}
+
+suppressStockDefaultPdf();
+document.addEventListener("webviewerloaded", suppressStockDefaultPdf);
 
 const pdfState = {
   pdfUrl: null, // "pdf:<sha256hex>" — the vocab/cards key for this document
@@ -41,7 +64,19 @@ async function loadHandoff() {
 
   const handoff = await takeHandoff(token);
   if (!handoff) {
+    // Expected whenever the tab outlives its staged bytes: the record is swept
+    // after 30 minutes (PDF_HANDOFF_MAX_AGE_MS in service-worker.js), and
+    // reloading the extension re-navigates any open viewer tab to this same
+    // ?handoff= URL long after that. Until now this only wrote to the console
+    // and left an empty viewer, which reads as "the extension is broken".
     console.error("[FLA pdf-viewer] handoff missing or expired:", token);
+    showViewerError(
+      "This PDF is no longer loaded",
+      "Its contents are staged only for a short while after you open it, and that " +
+        "window has passed — reloading the extension or coming back to an old tab " +
+        "will both land you here. Open the file again from the extension popup, or " +
+        "use this viewer's own Open File button."
+    );
     return;
   }
 
@@ -54,6 +89,24 @@ async function loadHandoff() {
     data: new Uint8Array(handoff.arrayBuffer),
     filename: pdfState.docTitle
   });
+}
+
+// Styled by content/popup.css (already linked into viewer.html for the bubble),
+// so it picks up the same palette and light/dark handling. Built with the DOM
+// rather than innerHTML+inline styles because the vendored viewer.html carries
+// its own strict CSP (`style-src 'self'`) — CSSOM and classes are fine there,
+// a style attribute would not be.
+function showViewerError(title, detail) {
+  document.getElementById("fla-viewer-error")?.remove();
+  const box = document.createElement("div");
+  box.id = "fla-viewer-error";
+  box.className = "fla-viewer-error";
+  const h = document.createElement("h2");
+  h.textContent = title;
+  const p = document.createElement("p");
+  p.textContent = detail;
+  box.append(h, p);
+  document.body.appendChild(box);
 }
 
 loadHandoff();
@@ -74,6 +127,10 @@ const BUBBLE_ID = "fla-bubble";
 const HOVER_DEBOUNCE_MS = 900;
 const BUBBLE_MARGIN = 8;
 const DEFER_TRANSLATE_SEGMENTS = 4;
+// Ceiling on a saved context sentence. Unpunctuated text (a heading, a table
+// cell, a PDF page whose sentence boundaries didn't survive extraction) has no
+// natural end, and the whole container is not "a sentence".
+const MAX_CONTEXT_CHARS = 400;
 
 let hoverModeEnabled = false;
 let currentBubble = null;
@@ -88,18 +145,44 @@ function isInteractiveTarget(el) {
   return !!(el && el.closest && el.closest(INTERACTIVE_SELECTOR));
 }
 
-function removeBubble() {
-  if (currentBubble) {
-    currentBubble.remove();
-    currentBubble = null;
+function removeBubble({ immediate = false } = {}) {
+  const bubble = currentBubble;
+  currentBubble = null;
+  if (!bubble) return;
+
+  // Whatever the bubble was reading belongs to the bubble. Leaving a voice
+  // talking after the thing that started it is gone is disorienting, and on a
+  // long passage it can run for a while.
+  window.speechSynthesis?.cancel();
+
+  if (immediate) {
+    // Being replaced by another bubble — a fade here would leave two on screen.
+    bubble.remove();
+    return;
   }
+  bubble.classList.add("fla-bubble--out");
+  setTimeout(() => bubble.remove(), 160);
 }
+
+// Scrolling moves the page out from under the bubble, which was anchored to a
+// word that may now be off screen. Dismiss rather than chase it. Capture phase
+// catches scrolls inside any container, and the containment check keeps the
+// bubble's OWN overflow scrolling (long translations) from closing it.
+document.addEventListener(
+  "scroll",
+  (e) => {
+    if (!currentBubble) return;
+    if (e.target instanceof Node && currentBubble.contains(e.target)) return;
+    removeBubble();
+  },
+  { capture: true, passive: true }
+);
 
 // Mirrors content-script.js's bubble placement (see the comments there): the
 // bubble is re-measured and re-placed after every content swap, and goes
 // beside a tall selection rather than off the bottom of the screen.
 function createBubble(rect) {
-  removeBubble();
+  removeBubble({ immediate: true });
   const bubble = document.createElement("div");
   bubble.id = BUBBLE_ID;
   bubble.className = "fla-bubble";
@@ -186,8 +269,11 @@ function renderBubble(bubble, { source, translation, sourceLang, targetLang }, c
   bubble.querySelector('[data-action="speak-target"]').onclick = () => speak(translation, targetLang);
   bubble.querySelector('[data-action="save"]').onclick = () =>
     saveWord({ source, translation, sourceLang, targetLang, contextSentence });
-  bubble.querySelector('[data-action="conjugate"]').onclick = () =>
-    requestConjugation(sourceLang === "fr" ? source : translation);
+  updateGenderChip(bubble, source, sourceLang);
+  const conjBtn = bubble.querySelector('[data-action="conjugate"]');
+  const conjWord = sourceLang === "fr" ? source : translation;
+  conjBtn.onclick = () => requestConjugation(conjWord);
+  updateConjugateButton(conjBtn, conjWord);
   bubble.querySelector('[data-action="workbook"]').onclick = () =>
     chrome.runtime.sendMessage({ type: "OPEN_SIDEPANEL", view: "vocab" });
   const practiceBtn = bubble.querySelector('[data-action="practice"]');
@@ -231,6 +317,91 @@ async function showSelectionBubble(sel, contextSentence) {
   return requestTranslation(sel.text, bubble, contextSentence);
 }
 
+// Only a verb can be conjugated, and the bundled verb data is the only thing
+// that knows which words those are — so ask before offering the button. It
+// starts disabled and is enabled only on a hit: showing it live and then
+// failing on click is a worse experience than a brief moment of grey.
+// CONJUGATE resolves inflected forms too ("parle" -> "parler"), and the shards
+// are cached in the worker, so this is cheap after the first lookup per letter.
+async function updateConjugateButton(btn, word) {
+  if (!btn) return;
+  const candidate = (word || "").trim();
+  btn.disabled = true;
+
+  // A phrase can't be conjugated, so don't even ask.
+  if (!candidate || /\s/.test(candidate)) {
+    btn.title = "Only a single verb can be conjugated";
+    return;
+  }
+
+  try {
+    const resp = await chrome.runtime.sendMessage({ type: "CONJUGATE", verb: candidate });
+    if (resp?.ok) {
+      btn.disabled = false;
+      btn.title = "Show this verb's conjugation";
+      return;
+    }
+  } catch (err) {
+    // Worker asleep or the channel failed — leave it disabled rather than
+    // promising something that may not work.
+    console.warn("[FLA] conjugation check failed", err);
+  }
+  btn.title = `“${candidate}” isn't a verb`;
+}
+
+// -----------------------------
+// Gender chip
+//
+// Same rule content/annotator.js and the side panel both use: nouns only, and
+// plural wins over gender. A known noun whose gender the lexicon doesn't carry
+// gets nothing rather than a guess.
+//
+// The mark is a line STYLE as well as a colour — solid / dotted / dashed —
+// because the gender colours are user-chosen and can't be relied on to carry
+// contrast, and colour alone excludes anyone who can't separate the hues.
+// -----------------------------
+
+const GENDER_LABEL = { masculine: "m.", feminine: "f.", plural: "pl." };
+
+function genderFromLexicon(entry) {
+  if (!entry || entry.pos !== "NOM") return null;
+  if (entry.number === "p") return "plural";
+  if (entry.gender === "m") return "masculine";
+  if (entry.gender === "f") return "feminine";
+  return null;
+}
+
+// Looked up separately from TRANSLATE rather than bolted onto its response:
+// TRANSLATE takes arbitrary text (a whole passage), while this only ever makes
+// sense for a single word, and LOOKUP_WORDS already exists for exactly this.
+async function updateGenderChip(bubble, word, sourceLang) {
+  const candidate = (word || "").trim();
+  if (!bubble || sourceLang !== "fr" || !candidate || /\s/.test(candidate)) return;
+
+  let entry = null;
+  try {
+    const resp = await chrome.runtime.sendMessage({ type: "LOOKUP_WORDS", words: [candidate] });
+    entry = resp?.entries?.[candidate] || null;
+  } catch (err) {
+    return; // worker asleep or channel failed — the chip is an extra, not a promise
+  }
+
+  const gender = genderFromLexicon(entry);
+  // The bubble may have been replaced while the lookup was in flight.
+  if (!gender || !bubble.isConnected) return;
+
+  const row = bubble.querySelector(".fla-row");
+  const text = row?.querySelector(".fla-text");
+  if (!text) return;
+
+  const chip = document.createElement("span");
+  chip.className = `fla-gender fla-gender--${gender}`;
+  chip.textContent = GENDER_LABEL[gender];
+  chip.title = gender === "plural" ? "plural noun" : `${gender} noun`;
+  text.insertAdjacentElement("afterend", chip);
+  placeBubble(bubble);
+}
+
 function escapeHtml(str) {
   return str
     .replace(/&/g, "&amp;")
@@ -269,27 +440,21 @@ function findBlockAncestor(node) {
   return (node.nodeType === Node.TEXT_NODE ? node.parentElement : node) || document.body;
 }
 
-function rangeOffsetsInContainer(range, container) {
-  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
-  let offset = 0;
-  let start = null;
-  let end = null;
-  let node;
-  while ((node = walker.nextNode())) {
-    if (node === range.startContainer) start = offset + range.startOffset;
-    if (node === range.endContainer) end = offset + range.endOffset;
-    offset += node.textContent.length;
-  }
-  return { start, end };
+// Mirrors content/content-script.js's copy — see the fuller comment there.
+// This measures with a probe Range instead of identity-matching text nodes in
+// a walker, which never matched a Range anchored to an ELEMENT and so fell
+// through to a fallback returning the first 300 characters of the container.
+// That bites hardest here: a PDF text layer has no paragraph structure, so the
+// container is the WHOLE PAGE, and the "context sentence" saved with a word
+// was text from an unrelated part of it.
+function textOffsetOf(container, node, nodeOffset) {
+  const probe = document.createRange();
+  probe.selectNodeContents(container);
+  probe.setEnd(node, nodeOffset);
+  return probe.toString().length;
 }
 
-function getContextSentence(range) {
-  if (!range) return "";
-  const container = findBlockAncestor(range.commonAncestorContainer);
-  const text = container.textContent || "";
-  const { start, end } = rangeOffsetsInContainer(range, container);
-  if (start == null || end == null) return text.trim().slice(0, 300);
-
+function sliceSentence(text, start, end) {
   const BOUNDARY = /[.!?\n]/;
   let sentStart = 0;
   for (let i = start - 1; i >= 0; i--) {
@@ -305,7 +470,36 @@ function getContextSentence(range) {
       break;
     }
   }
-  return text.slice(sentStart, sentEnd).trim();
+  // A PDF page whose sentence boundaries didn't survive text extraction has no
+  // natural end, and the whole page is not "a sentence".
+  return text.slice(sentStart, sentEnd).trim().slice(0, MAX_CONTEXT_CHARS);
+}
+
+function getContextSentence(range) {
+  if (!range) return "";
+  const container = findBlockAncestor(range.commonAncestorContainer);
+  const text = container.textContent || "";
+
+  let start = null;
+  let end = null;
+  try {
+    start = textOffsetOf(container, range.startContainer, range.startOffset);
+    end = textOffsetOf(container, range.endContainer, range.endOffset);
+  } catch {
+    // The range isn't inside this container (detached node, re-rendered page).
+  }
+
+  if (start != null && end != null && start <= text.length) {
+    return sliceSentence(text, start, end);
+  }
+
+  // Fall back to the word's OWN text node, never an arbitrary slice of the
+  // page: unrelated context is worse than terse context, because it reads as
+  // correct and is silently wrong.
+  const node = range.startContainer;
+  const local = node?.textContent || "";
+  if (local) return sliceSentence(local, range.startOffset, range.startOffset);
+  return range.toString().trim().slice(0, MAX_CONTEXT_CHARS);
 }
 
 function getSelectionText() {
@@ -423,11 +617,13 @@ async function requestTranslation(text, bubble, contextSentence) {
 // with sender.tab.url specifically so this works.
 async function saveWord(entry) {
   try {
-    await chrome.runtime.sendMessage({
+    const resp = await chrome.runtime.sendMessage({
       type: "SAVE_WORD",
       entry: { ...entry, url: pdfState.pdfUrl, pdfTitle: pdfState.docTitle }
     });
-    flashBubbleFeedback("Saved ✓");
+    // Already in this PDF's workbook — the save refreshed it rather than
+    // adding a second copy.
+    flashBubbleFeedback(resp?.duplicate ? "Already saved — updated ✓" : "Saved ✓");
   } catch (err) {
     console.error("[FLA pdf-viewer] save failed", err);
   }
@@ -459,23 +655,27 @@ async function requestConjugation(verb) {
     // didn't wake in time) — different failure than "not a verb," but just
     // as silent to the user if we don't say something here.
     console.error("[FLA pdf-viewer] conjugate lookup failed", err);
-    flashBubbleFeedback("Lookup failed — try again.");
+    flashBubbleFeedback("Lookup failed — try again.", "error");
     return;
   }
   if (resp?.error) {
-    flashBubbleFeedback(resp.error);
+    flashBubbleFeedback(resp.error, "error");
     return;
   }
   await chrome.runtime.sendMessage({ type: "OPEN_SIDEPANEL", view: "conjugation", verb });
 }
 
-function flashBubbleFeedback(msg) {
+// tone "ok" is the sage confirmation pill; "error" is the same shape in the
+// error colour. They shared one style before, which meant "Lookup failed"
+// arrived in the same green as "Saved ✓" — the colour that means the opposite.
+function flashBubbleFeedback(msg, tone = "ok") {
   if (!currentBubble) return;
   const flash = document.createElement("div");
-  flash.className = "fla-flash";
+  flash.className = tone === "error" ? "fla-flash fla-flash--error" : "fla-flash";
   flash.textContent = msg;
   currentBubble.appendChild(flash);
-  setTimeout(() => flash.remove(), 1500);
+  // An error is worth reading; a confirmation isn't.
+  setTimeout(() => flash.remove(), tone === "error" ? 3000 : 1500);
 }
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
@@ -516,11 +716,24 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 // active when the user toggles hover mode from the popup/Alt+T — annotator.js
 // established this chrome.storage.onChanged pattern in Phase 2 for exactly
 // this kind of per-tab setting that shouldn't require the tab to be focused).
+// content/popup.css themes the bubble off these two classes, and on a host
+// page content/annotator.js is what sets them. It's a content script, so it
+// never runs on this extension page — mirror it here or the PDF bubble ignores
+// the user's Light/Dark choice. Neither class set means "follow the OS", which
+// is what the stylesheet's media query handles.
+function applyThemeClasses(config = {}) {
+  const root = document.documentElement;
+  root.classList.toggle("fla-theme-dark", config.themeMode === "dark");
+  root.classList.toggle("fla-theme-light", config.themeMode === "light");
+}
+
 chrome.storage.local.get("config").then(({ config = {} }) => {
   hoverModeEnabled = !!config.hoverModeEnabled;
+  applyThemeClasses(config);
 });
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "local" && changes.config) {
     hoverModeEnabled = !!changes.config.newValue?.hoverModeEnabled;
+    applyThemeClasses(changes.config.newValue || {});
   }
 });

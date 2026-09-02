@@ -1,19 +1,87 @@
-/* Floating translation bubble - kept namespaced to avoid host page collisions */
+/* Floating translation bubble - kept namespaced to avoid host page collisions.
+ *
+ * Visual language matches lib/theme.css ("The Library at Dusk"), but the
+ * tokens are declared on .fla-bubble rather than :root — a content script must
+ * never define custom properties on the host page's root, and it can't @import
+ * an extension stylesheet without also inheriting that risk. If a token changes
+ * in lib/theme.css, change it here too.
+ *
+ * Fonts are bundled (see fonts/README.txt) and reachable from a host page via
+ * manifest.json's web_accessible_resources; if a page's CSP blocks them the
+ * stacks below degrade to Georgia / the system sans without any layout shift.
+ */
+
+@font-face {
+  font-family: "L auxiliaire Garamond";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("../fonts/eb-garamond-latin.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "L auxiliaire Garamond";
+  font-style: italic;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("../fonts/eb-garamond-latin-italic.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "L auxiliaire Sans";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("../fonts/public-sans-latin.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "L auxiliaire Sans";
+  font-style: italic;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("../fonts/public-sans-latin-italic.woff2") format("woff2");
+}
 
 .fla-bubble {
+  /* Scoped copy of the design tokens — see the note at the top of this file. */
+  --fla-serif: "L auxiliaire Garamond", "Iowan Old Style", "Palatino Linotype",
+    Palatino, Georgia, serif;
+  --fla-sans: "L auxiliaire Sans", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, sans-serif;
+  --fla-card: #ffffff;
+  --fla-sunken: #f4f4f0;
+  --fla-raised: #efeeea;
+  --fla-variant: #e3e2df;
+  --fla-ink: #1b1c1a;
+  --fla-ink-muted: #44474c;
+  --fla-ink-faint: #5b6370;
+  --fla-ink-disabled: #9aa1ad;
+  --fla-heading: #041627;
+  --fla-line: #dcdbd6;
+  --fla-line-strong: #c4c6cd;
+  --fla-primary: #041627;
+  --fla-primary-soft: #1a2b3c;
+  --fla-on-primary: #ffffff;
+  --fla-accent: #476553;
+  --fla-accent-tint: #cee9db;
+  --fla-error: #ba1a1a;
+  --fla-error-tint: #ffdad6;
+
   position: absolute;
   z-index: 2147483647;
-  min-width: 240px;
+  min-width: 260px;
   max-width: 380px;
-  background: #ffffff;
-  color: #1a1a1a;
-  border: 1px solid #e0e0e0;
-  border-radius: 10px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
-  padding: 10px 12px;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: var(--fla-card);
+  color: var(--fla-ink);
+  border: 1px solid var(--fla-line);
+  border-radius: 8px;
+  box-shadow: 0 4px 20px -2px rgba(4, 22, 39, 0.18);
+  padding: 12px 14px;
+  font-family: var(--fla-sans);
   font-size: 14px;
-  line-height: 1.4;
+  line-height: 1.5;
+  text-align: left;
   /* A long selection's translation must never grow the bubble past the
      viewport — content scrolls inside it instead, so the action buttons at
      the bottom stay reachable. placeBubble() handles where it sits. */
@@ -22,34 +90,107 @@
   overscroll-behavior: contain;
 }
 
+/* Pops out of the page on open and back into it on close. `scale`, not
+   `transform: scale()`, so nothing here can clobber a transform the bubble
+   might need later; transform-origin makes it grow from the corner nearest the
+   word rather than from its middle. */
+@keyframes fla-bubble-in {
+  from {
+    opacity: 0;
+    scale: 0.9;
+  }
+  60% {
+    scale: 1.02;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+.fla-bubble {
+  transform-origin: top left;
+  animation: fla-bubble-in 0.18s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+}
+
+/* Set by removeBubble() just before the element is dropped. */
+.fla-bubble.fla-bubble--out {
+  opacity: 0;
+  scale: 0.92;
+  pointer-events: none;
+  transition: opacity 0.14s ease, scale 0.14s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fla-bubble,
+  .fla-bubble.fla-bubble--out {
+    animation: none;
+    transition: none;
+  }
+}
+
 /* Untranslated source text in the deferred (passage) bubble — a preview, so
    it gets its own scroll rather than pushing the buttons out of view. */
 .fla-bubble .fla-preview {
   max-height: 7.5em;
   overflow-y: auto;
   white-space: pre-wrap;
-  font-size: 13px;
+  font-family: var(--fla-serif);
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--fla-ink);
 }
 
 .fla-bubble .fla-row {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 8px;
-  padding: 4px 0;
+  padding: 2px 0;
+}
+
+/* The French source is the headline of the bubble: serif, set larger than
+   everything around it. A one-word gloss and a paragraph share this rule, so
+   the size stays restrained enough that a passage still reads as body text. */
+.fla-bubble .fla-row:first-child .fla-text {
+  font-family: var(--fla-serif);
+  font-size: 19px;
+  line-height: 1.35;
+  color: var(--fla-heading);
+}
+
+/* …except a deferred passage preview, which is many lines long and stays at
+   reading size rather than headline size. */
+.fla-bubble .fla-row:first-child .fla-text.fla-preview {
+  font-size: 15px;
 }
 
 .fla-bubble .fla-translation {
-  border-top: 1px solid #f0f0f0;
-  margin-top: 4px;
-  padding-top: 8px;
+  border-top: 1px solid var(--fla-line);
+  margin-top: 8px;
+  padding-top: 10px;
+}
+
+/* The English reads as an aside to the French, not a peer of it. */
+.fla-bubble .fla-translation .fla-text {
+  font-style: italic;
+  font-size: 14px;
+  color: var(--fla-ink-muted);
 }
 
 .fla-bubble .fla-lang {
-  font-size: 10px;
-  text-transform: uppercase;
-  color: #888;
-  min-width: 22px;
+  font-family: var(--fla-sans);
+  font-size: 9px;
   font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fla-ink-muted);
+  background: var(--fla-variant);
+  border-radius: 3px;
+  padding: 2px 4px;
+  flex: 0 0 auto;
+  align-self: flex-start;
+  position: relative;
+  top: 2px;
 }
 
 .fla-bubble .fla-text {
@@ -57,49 +198,255 @@
   word-break: break-word;
 }
 
-.fla-bubble .fla-btn {
-  background: #f5f5f5;
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
-  padding: 3px 8px;
-  cursor: pointer;
-  font-size: 12px;
-  color: #333;
+/* Grammatical gender for nouns, inserted by updateGenderChip() after the
+   lexicon lookup returns. Carries a line STYLE as well as a colour — the
+   gender colours are user-chosen, so they can't be relied on for contrast,
+   and colour alone excludes anyone who can't separate the hues. Matches the
+   side panel's .gender chip so the page and the workbook agree.
+
+   The --fla-color-* variables are set on the host page's <html> by
+   content/annotator.js; in the PDF viewer, where no content script runs, the
+   fallbacks below apply. */
+.fla-bubble .fla-gender {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  position: relative;
+  top: 3px;
+  padding: 2px 5px;
+  border-left: 3px solid var(--gender-color, var(--fla-line-strong));
+  border-radius: 2px 3px 3px 2px;
+  background: var(--fla-variant);
+  color: var(--fla-ink-muted);
+  font-family: var(--fla-sans);
+  font-size: 10px;
+  font-style: italic;
+  line-height: 1.4;
 }
 
-.fla-bubble .fla-btn:hover {
-  background: #ececec;
+.fla-bubble .fla-gender--masculine {
+  --gender-color: var(--fla-color-masculine, #4a90d9);
+  border-left-style: solid;
+}
+
+.fla-bubble .fla-gender--feminine {
+  --gender-color: var(--fla-color-feminine, #d9498a);
+  border-left-style: dotted;
+}
+
+.fla-bubble .fla-gender--plural {
+  --gender-color: var(--fla-color-plural, #2ea44f);
+  border-left-style: dashed;
+}
+
+.fla-bubble .fla-btn {
+  background: var(--fla-card);
+  border: 1px solid var(--fla-line-strong);
+  border-radius: 5px;
+  padding: 4px 9px;
+  cursor: pointer;
+  font-family: var(--fla-sans);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--fla-ink-muted);
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.fla-bubble .fla-btn:hover:not(:disabled) {
+  background: var(--fla-raised);
+  border-color: var(--fla-ink-faint);
+  color: var(--fla-ink);
+}
+
+/* Offered but not available — Conjugate on a word that isn't a verb.
+   Three signals at once, because one wasn't enough to read as "off": the fill
+   goes away entirely, the border turns dashed (nothing else in this UI is
+   dashed except placeholders), and the label drops to --fla-ink-disabled.
+   Greyed by colour, never by opacity — opacity compounds against whatever is
+   behind it and is unpredictable on a host page. */
+.fla-bubble .fla-btn:disabled {
+  background: transparent;
+  border-color: var(--fla-line);
+  border-style: dashed;
+  color: var(--fla-ink-disabled);
+  cursor: not-allowed;
+}
+
+/* Saving with context is the point of the bubble, so it gets the one filled
+   button; the same goes for Translate in the deferred state, where it's the
+   only reason the bubble is waiting. */
+.fla-bubble .fla-save,
+.fla-bubble .fla-translate {
+  background: var(--fla-primary);
+  border-color: var(--fla-primary);
+  color: var(--fla-on-primary);
+  font-weight: 500;
+}
+
+.fla-bubble .fla-save:hover,
+.fla-bubble .fla-translate:hover {
+  background: var(--fla-primary-soft);
+  border-color: var(--fla-primary-soft);
+  color: var(--fla-on-primary);
+}
+
+/* Speak buttons are glyph-only and sit inline with text — keep them small
+   and round so they read as an affordance, not a control. */
+.fla-bubble .fla-row > .fla-btn {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 10px;
+  background: var(--fla-sunken);
+  border-color: transparent;
 }
 
 .fla-bubble .fla-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid #f0f0f0;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--fla-line);
 }
 
-.fla-bubble .fla-loading,
-.fla-bubble .fla-error {
-  padding: 4px 0;
-  color: #666;
+.fla-bubble .fla-loading {
+  padding: 2px 0;
+  color: var(--fla-ink-faint);
   font-style: italic;
 }
 
+/* A failure is a real message, not red italic text. Same shape as the saved
+   word's context quote — tinted ground, a coloured rule down the edge — so it
+   reads as part of the same system rather than as a browser error. */
 .fla-bubble .fla-error {
-  color: #c62828;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 2px 0;
+  padding: 10px 12px;
+  background: var(--fla-error-tint);
+  border-left: 3px solid var(--fla-error);
+  border-radius: 0 6px 6px 0;
+  color: var(--fla-error);
+  font-family: var(--fla-sans);
+  font-style: normal;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
+.fla-bubble .fla-error::before {
+  content: "!";
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: var(--fla-error);
+  color: var(--fla-error-tint);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* Transient confirmation, centred at the foot of the bubble so it doesn't sit
+   on top of an action button. Same pop as the bubble itself. */
 .fla-bubble .fla-flash {
   position: absolute;
-  right: 8px;
-  bottom: 8px;
-  background: #2e7d32;
-  color: white;
-  padding: 3px 8px;
-  border-radius: 4px;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 28px);
+  background: var(--fla-accent);
+  color: var(--fla-on-primary);
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-family: var(--fla-sans);
   font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 2px 10px rgba(4, 22, 39, 0.22);
+  transform-origin: bottom center;
+  animation: fla-bubble-in 0.18s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+}
+
+/* Sage says "done". A failure must not borrow it. */
+.fla-bubble .fla-flash--error {
+  background: var(--fla-error);
+  white-space: normal;
+}
+
+/* Viewer-level message panel (pdf-viewer/bridge.js). Lives in this file rather
+   than a viewer-only stylesheet because viewer.html already links this one for
+   the bubble, and it inherits the same tokens and dark handling. Tokens are
+   read off .fla-bubble, so this element declares its own copy of the two it
+   needs by pointing at the same values. */
+.fla-viewer-error {
+  position: fixed;
+  left: 50%;
+  top: 96px;
+  transform: translateX(-50%);
+  z-index: 2147483646;
+  max-width: 420px;
+  padding: 20px 22px;
+  background: #ffffff;
+  color: #1b1c1a;
+  border: 1px solid #dcdbd6;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px -2px rgba(4, 22, 39, 0.18);
+  font-family: "L auxiliaire Sans", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, sans-serif;
+}
+
+.fla-viewer-error h2 {
+  margin: 0 0 8px;
+  font-family: "L auxiliaire Garamond", "Iowan Old Style", "Palatino Linotype",
+    Palatino, Georgia, serif;
+  font-size: 21px;
+  font-weight: 500;
+  color: #041627;
+}
+
+.fla-viewer-error p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #44474c;
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not(.fla-theme-light) .fla-viewer-error {
+    background: #1a2029;
+    color: #f7f5f0;
+    border-color: #333c48;
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.6);
+  }
+  html:not(.fla-theme-light) .fla-viewer-error h2 {
+    color: #f7f5f0;
+  }
+  html:not(.fla-theme-light) .fla-viewer-error p {
+    color: #dadfe6;
+  }
+}
+
+html.fla-theme-dark .fla-viewer-error {
+  background: #1a2029;
+  color: #f7f5f0;
+  border-color: #333c48;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.6);
+}
+
+html.fla-theme-dark .fla-viewer-error h2 {
+  color: #f7f5f0;
+}
+
+html.fla-theme-dark .fla-viewer-error p {
+  color: #dadfe6;
 }
 
 /* Reading aids (Phase 2): gender/plural color-coding, frequency dimming,
@@ -127,31 +474,62 @@ html.fla-colorcoding-on.fla-cat-neutral-on .fla-word--neutral {
   color: var(--fla-color-neutral, #888888);
 }
 
-html.fla-dimming-on .fla-dim {
-  opacity: 0.45;
-}
 
-html.fla-cognates-on .fla-cognate {
-  text-decoration: underline dotted;
-  text-underline-offset: 2px;
-}
+
+/* Dark palette for the bubble — the same values as lib/theme.css's dark block,
+   which check-contrast.js asserts.
+
+   Written twice for the same reason that file is: a media query and a plain
+   class selector can't be combined into one rule, and there's no build step.
+   `html.fla-theme-dark` is set by content/annotator.js from config.themeMode;
+   `html.fla-theme-light` forces light back on even under a dark OS, which is
+   what the :not() guard below is for. Neither class set means "follow the OS",
+   so the media query takes over. */
 
 @media (prefers-color-scheme: dark) {
-  .fla-bubble {
-    background: #1e1e1e;
-    color: #eee;
-    border-color: #333;
+  html:not(.fla-theme-light) .fla-bubble {
+    --fla-card: #1a2029;
+    --fla-sunken: #10141a;
+    --fla-raised: #232b36;
+    --fla-variant: #2f3845;
+    --fla-ink: #f7f5f0;
+    --fla-ink-muted: #dadfe6;
+    --fla-ink-faint: #b0b9c5;
+    --fla-ink-disabled: #5d6672;
+    --fla-heading: #f7f5f0;
+    --fla-line: #333c48;
+    --fla-line-strong: #4d5866;
+    --fla-primary: #c6d5e8;
+    --fla-primary-soft: #dfeafd;
+    --fla-on-primary: #08131f;
+    --fla-accent: #b4dcc3;
+    --fla-error: #ffbcb4;
+    --fla-error-tint: #5e1a17;
+
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.6);
   }
-  .fla-bubble .fla-btn {
-    background: #2a2a2a;
-    border-color: #444;
-    color: #eee;
-  }
-  .fla-bubble .fla-btn:hover {
-    background: #333;
-  }
-  .fla-bubble .fla-translation,
-  .fla-bubble .fla-actions {
-    border-top-color: #333;
-  }
+
 }
+
+html.fla-theme-dark .fla-bubble {
+  --fla-card: #1a2029;
+  --fla-sunken: #10141a;
+  --fla-raised: #232b36;
+  --fla-variant: #2f3845;
+  --fla-ink: #f7f5f0;
+  --fla-ink-muted: #dadfe6;
+  --fla-ink-faint: #b0b9c5;
+  --fla-ink-disabled: #5d6672;
+  --fla-heading: #f7f5f0;
+  --fla-line: #333c48;
+  --fla-line-strong: #4d5866;
+  --fla-primary: #c6d5e8;
+  --fla-primary-soft: #dfeafd;
+  --fla-on-primary: #08131f;
+  --fla-accent: #b4dcc3;
+  --fla-error: #ffbcb4;
+  --fla-error-tint: #5e1a17;
+
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.6);
+}
+

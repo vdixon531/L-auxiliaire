@@ -11,6 +11,10 @@ const BUBBLE_MARGIN = 8;
 // a phrase: translating it on sight produces a wall of text the user usually
 // didn't ask for, so it waits behind a Translate button instead.
 const DEFER_TRANSLATE_SEGMENTS = 4;
+// Ceiling on a saved context sentence. Unpunctuated text (a heading, a table
+// cell, a PDF page whose sentence boundaries didn't survive extraction) has no
+// natural end, and the whole container is not "a sentence".
+const MAX_CONTEXT_CHARS = 400;
 
 let hoverModeEnabled = false;
 let currentBubble = null;
@@ -30,19 +34,45 @@ function isInteractiveTarget(el) {
 // Bubble UI
 // -----------------------------
 
-function removeBubble() {
-  if (currentBubble) {
-    currentBubble.remove();
-    currentBubble = null;
+function removeBubble({ immediate = false } = {}) {
+  const bubble = currentBubble;
+  currentBubble = null;
+  if (!bubble) return;
+
+  // Whatever the bubble was reading belongs to the bubble. Leaving a voice
+  // talking after the thing that started it is gone is disorienting, and on a
+  // long passage it can run for a while.
+  window.speechSynthesis?.cancel();
+
+  if (immediate) {
+    // Being replaced by another bubble — a fade here would leave two on screen.
+    bubble.remove();
+    return;
   }
+  bubble.classList.add("fla-bubble--out");
+  setTimeout(() => bubble.remove(), 160);
 }
+
+// Scrolling moves the page out from under the bubble, which was anchored to a
+// word that may now be off screen. Dismiss rather than chase it. Capture phase
+// catches scrolls inside any container, and the containment check keeps the
+// bubble's OWN overflow scrolling (long translations) from closing it.
+document.addEventListener(
+  "scroll",
+  (e) => {
+    if (!currentBubble) return;
+    if (e.target instanceof Node && currentBubble.contains(e.target)) return;
+    removeBubble();
+  },
+  { capture: true, passive: true }
+);
 
 // `rect` is the viewport-relative box of the word/selection the bubble
 // describes. It's kept on the element because the bubble is re-measured and
 // re-placed after every content swap — a translation is a very different size
 // from "Translating…", and a paragraph's translation is different again.
 function createBubble(rect) {
-  removeBubble();
+  removeBubble({ immediate: true });
   const bubble = document.createElement("div");
   bubble.id = BUBBLE_ID;
   bubble.className = "fla-bubble";
@@ -137,8 +167,11 @@ function renderBubble(bubble, { source, translation, sourceLang, targetLang }, c
     speak(translation, targetLang);
   bubble.querySelector('[data-action="save"]').onclick = () =>
     saveWord({ source, translation, sourceLang, targetLang, contextSentence });
-  bubble.querySelector('[data-action="conjugate"]').onclick = () =>
-    requestConjugation(sourceLang === "fr" ? source : translation);
+  updateGenderChip(bubble, source, sourceLang);
+  const conjBtn = bubble.querySelector('[data-action="conjugate"]');
+  const conjWord = sourceLang === "fr" ? source : translation;
+  conjBtn.onclick = () => requestConjugation(conjWord);
+  updateConjugateButton(conjBtn, conjWord);
   bubble.querySelector('[data-action="workbook"]').onclick = () =>
     chrome.runtime.sendMessage({ type: "OPEN_SIDEPANEL", view: "vocab" });
   const practiceBtn = bubble.querySelector('[data-action="practice"]');
@@ -185,6 +218,91 @@ async function showSelectionBubble(sel, contextSentence) {
   return requestTranslation(sel.text, bubble, contextSentence);
 }
 
+// Only a verb can be conjugated, and the bundled verb data is the only thing
+// that knows which words those are — so ask before offering the button. It
+// starts disabled and is enabled only on a hit: showing it live and then
+// failing on click is a worse experience than a brief moment of grey.
+// CONJUGATE resolves inflected forms too ("parle" -> "parler"), and the shards
+// are cached in the worker, so this is cheap after the first lookup per letter.
+async function updateConjugateButton(btn, word) {
+  if (!btn) return;
+  const candidate = (word || "").trim();
+  btn.disabled = true;
+
+  // A phrase can't be conjugated, so don't even ask.
+  if (!candidate || /\s/.test(candidate)) {
+    btn.title = "Only a single verb can be conjugated";
+    return;
+  }
+
+  try {
+    const resp = await chrome.runtime.sendMessage({ type: "CONJUGATE", verb: candidate });
+    if (resp?.ok) {
+      btn.disabled = false;
+      btn.title = "Show this verb's conjugation";
+      return;
+    }
+  } catch (err) {
+    // Worker asleep or the channel failed — leave it disabled rather than
+    // promising something that may not work.
+    console.warn("[FLA] conjugation check failed", err);
+  }
+  btn.title = `“${candidate}” isn't a verb`;
+}
+
+// -----------------------------
+// Gender chip
+//
+// Same rule content/annotator.js and the side panel both use: nouns only, and
+// plural wins over gender. A known noun whose gender the lexicon doesn't carry
+// gets nothing rather than a guess.
+//
+// The mark is a line STYLE as well as a colour — solid / dotted / dashed —
+// because the gender colours are user-chosen and can't be relied on to carry
+// contrast, and colour alone excludes anyone who can't separate the hues.
+// -----------------------------
+
+const GENDER_LABEL = { masculine: "m.", feminine: "f.", plural: "pl." };
+
+function genderFromLexicon(entry) {
+  if (!entry || entry.pos !== "NOM") return null;
+  if (entry.number === "p") return "plural";
+  if (entry.gender === "m") return "masculine";
+  if (entry.gender === "f") return "feminine";
+  return null;
+}
+
+// Looked up separately from TRANSLATE rather than bolted onto its response:
+// TRANSLATE takes arbitrary text (a whole passage), while this only ever makes
+// sense for a single word, and LOOKUP_WORDS already exists for exactly this.
+async function updateGenderChip(bubble, word, sourceLang) {
+  const candidate = (word || "").trim();
+  if (!bubble || sourceLang !== "fr" || !candidate || /\s/.test(candidate)) return;
+
+  let entry = null;
+  try {
+    const resp = await chrome.runtime.sendMessage({ type: "LOOKUP_WORDS", words: [candidate] });
+    entry = resp?.entries?.[candidate] || null;
+  } catch (err) {
+    return; // worker asleep or channel failed — the chip is an extra, not a promise
+  }
+
+  const gender = genderFromLexicon(entry);
+  // The bubble may have been replaced while the lookup was in flight.
+  if (!gender || !bubble.isConnected) return;
+
+  const row = bubble.querySelector(".fla-row");
+  const text = row?.querySelector(".fla-text");
+  if (!text) return;
+
+  const chip = document.createElement("span");
+  chip.className = `fla-gender fla-gender--${gender}`;
+  chip.textContent = GENDER_LABEL[gender];
+  chip.title = gender === "plural" ? "plural noun" : `${gender} noun`;
+  text.insertAdjacentElement("afterend", chip);
+  placeBubble(bubble);
+}
+
 function escapeHtml(str) {
   return str
     .replace(/&/g, "&amp;")
@@ -225,29 +343,26 @@ function findBlockAncestor(node) {
   return (node.nodeType === Node.TEXT_NODE ? node.parentElement : node) || document.body;
 }
 
-// Range coordinates are per-text-node; walk the container's text nodes to
-// translate them into offsets within the container's flattened text.
-function rangeOffsetsInContainer(range, container) {
-  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
-  let offset = 0;
-  let start = null;
-  let end = null;
-  let node;
-  while ((node = walker.nextNode())) {
-    if (node === range.startContainer) start = offset + range.startOffset;
-    if (node === range.endContainer) end = offset + range.endOffset;
-    offset += node.textContent.length;
-  }
-  return { start, end };
+// Range coordinates are per-node; translate a (node, offset) pair into an
+// offset within the container's flattened text.
+//
+// This measures with a probe Range rather than identity-matching text nodes in
+// a TreeWalker. The walker version only ever matched TEXT nodes, so any Range
+// anchored to an ELEMENT — which Selection produces routinely at block
+// boundaries, and caretRangeFromPoint can too — was never found, and
+// getContextSentence() fell through to a fallback that returned the first 300
+// characters of the whole block. On a large container (an <article>, or the
+// PDF viewer's per-page text layer) that is text from somewhere else entirely
+// on the page, saved as "the sentence you met this word in".
+function textOffsetOf(container, node, nodeOffset) {
+  const probe = document.createRange();
+  probe.selectNodeContents(container);
+  probe.setEnd(node, nodeOffset);
+  return probe.toString().length;
 }
 
-function getContextSentence(range) {
-  if (!range) return "";
-  const container = findBlockAncestor(range.commonAncestorContainer);
-  const text = container.textContent || "";
-  const { start, end } = rangeOffsetsInContainer(range, container);
-  if (start == null || end == null) return text.trim().slice(0, 300);
-
+// The sentence surrounding [start, end) in `text`.
+function sliceSentence(text, start, end) {
   const BOUNDARY = /[.!?\n]/;
   let sentStart = 0;
   for (let i = start - 1; i >= 0; i--) {
@@ -263,7 +378,37 @@ function getContextSentence(range) {
       break;
     }
   }
-  return text.slice(sentStart, sentEnd).trim();
+  // A "sentence" with no terminating punctuation anywhere near it — a PDF page
+  // of unpunctuated text, a heading, a table cell — would otherwise be the
+  // entire container.
+  return text.slice(sentStart, sentEnd).trim().slice(0, MAX_CONTEXT_CHARS);
+}
+
+function getContextSentence(range) {
+  if (!range) return "";
+  const container = findBlockAncestor(range.commonAncestorContainer);
+  const text = container.textContent || "";
+
+  let start = null;
+  let end = null;
+  try {
+    start = textOffsetOf(container, range.startContainer, range.startOffset);
+    end = textOffsetOf(container, range.endContainer, range.endOffset);
+  } catch {
+    // The range isn't inside this container (detached node, shadow boundary).
+  }
+
+  if (start != null && end != null && start <= text.length) {
+    return sliceSentence(text, start, end);
+  }
+
+  // Fall back to the word's OWN text node, never to an arbitrary slice of the
+  // block: unrelated context is worse than terse context, because it reads as
+  // correct and is silently wrong.
+  const node = range.startContainer;
+  const local = node?.textContent || "";
+  if (local) return sliceSentence(local, range.startOffset, range.startOffset);
+  return range.toString().trim().slice(0, MAX_CONTEXT_CHARS);
 }
 
 // -----------------------------
@@ -419,8 +564,13 @@ async function saveWord(entry) {
     // pageTitle labels this page's workbook in the side panel's workbook
     // list — same idea as pdf-viewer/bridge.js's pdfTitle for PDFs, just for
     // regular web pages, which otherwise have nothing readable but the URL.
-    await chrome.runtime.sendMessage({ type: "SAVE_WORD", entry: { ...entry, pageTitle: document.title } });
-    flashBubbleFeedback("Saved ✓");
+    const resp = await chrome.runtime.sendMessage({
+      type: "SAVE_WORD",
+      entry: { ...entry, pageTitle: document.title }
+    });
+    // Already in this workbook — the save refreshed it rather than adding a
+    // second copy. Saying "Saved ✓" would imply a new entry appeared.
+    flashBubbleFeedback(resp?.duplicate ? "Already saved — updated ✓" : "Saved ✓");
   } catch (err) {
     console.error("[FLA] save failed", err);
   }
@@ -454,24 +604,28 @@ async function requestConjugation(verb) {
     // didn't wake in time) — different failure than "not a verb," but just
     // as silent to the user if we don't say something here.
     console.error("[FLA content] conjugate lookup failed", err);
-    flashBubbleFeedback("Lookup failed — try again.");
+    flashBubbleFeedback("Lookup failed — try again.", "error");
     return;
   }
   if (resp?.error) {
-    flashBubbleFeedback(resp.error);
+    flashBubbleFeedback(resp.error, "error");
     return;
   }
   // Open side panel to show the table
   await chrome.runtime.sendMessage({ type: "OPEN_SIDEPANEL", view: "conjugation", verb });
 }
 
-function flashBubbleFeedback(msg) {
+// tone "ok" is the sage confirmation pill; "error" is the same shape in the
+// error colour. They shared one style before, which meant "Lookup failed"
+// arrived in the same green as "Saved ✓" — the colour that means the opposite.
+function flashBubbleFeedback(msg, tone = "ok") {
   if (!currentBubble) return;
   const flash = document.createElement("div");
-  flash.className = "fla-flash";
+  flash.className = tone === "error" ? "fla-flash fla-flash--error" : "fla-flash";
   flash.textContent = msg;
   currentBubble.appendChild(flash);
-  setTimeout(() => flash.remove(), 1500);
+  // An error is worth reading; a confirmation isn't.
+  setTimeout(() => flash.remove(), tone === "error" ? 3000 : 1500);
 }
 
 // -----------------------------

@@ -1,74 +1,295 @@
+/* Tokens and webfonts come from lib/theme.css (linked ahead of this file). */
+
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  width: 280px;
-  padding: 12px;
+  width: 300px;
+  padding: 0;
   margin: 0;
-  color: #1a1a1a;
+  font-size: 13px;
+  line-height: 1.45;
 }
-h1 { font-size: 15px; margin: 0 0 10px; }
-section { margin-bottom: 12px; }
+
+/* Masthead — the one place the product name is set in the serif at size. */
+h1 {
+  font-family: var(--fla-serif);
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--fla-heading);
+  margin: 0;
+  padding: var(--fla-md) var(--fla-md) var(--fla-gutter);
+  background: var(--fla-card);
+  border-bottom: 1px solid var(--fla-line);
+}
+
+section {
+  padding: var(--fla-gutter) var(--fla-md);
+  margin: 0;
+  border-bottom: 1px solid var(--fla-line);
+}
+
+section:last-of-type {
+  border-bottom: none;
+}
+
 .row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 4px 0;
+  gap: var(--fla-sm);
+  padding: 5px 0;
   font-size: 13px;
 }
+
 label {
   display: block;
   font-size: 12px;
-  margin-bottom: 6px;
-  color: #444;
+  margin-bottom: var(--fla-xs);
+  color: var(--fla-ink-muted);
 }
-select, input[type=password] {
+
+label.row {
+  margin-bottom: 0;
+  color: var(--fla-ink);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* The four gender/plural rows are sub-settings of the master colour-coding
+   switch above them — they're exactly the rows carrying a .controls group. */
+.reading-aids .row:has(.controls) {
+  padding-left: var(--fla-gutter);
+  color: var(--fla-ink-muted);
+}
+
+select,
+input[type="password"] {
   width: 100%;
-  padding: 5px 6px;
+  padding: 6px 8px;
   margin-top: 3px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  border: 1px solid var(--fla-line-strong);
+  border-radius: var(--fla-r-sm);
+  background: var(--fla-card);
+  color: var(--fla-ink);
+  font-family: inherit;
   font-size: 13px;
   box-sizing: border-box;
 }
-input[type=color] {
-  width: 40px;
-  height: 24px;
-  padding: 0;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+
+input[type="checkbox"] {
+  accent-color: var(--fla-primary);
+  width: 15px;
+  height: 15px;
   cursor: pointer;
 }
+
+input[type="color"] {
+  width: 34px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--fla-line-strong);
+  border-radius: var(--fla-r-sm);
+  background: var(--fla-card);
+  cursor: pointer;
+}
+
+.row select {
+  width: auto;
+  margin-top: 0;
+  font-size: 12px;
+  padding: 4px 6px;
+}
+
 .row .controls {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--fla-sm);
 }
+
+#readingLevel {
+  font-family: var(--fla-sans);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fla-ink-muted);
+  background: var(--fla-variant);
+  border-radius: var(--fla-r-sm);
+  padding: 2px 6px;
+}
+
 button {
   width: 100%;
-  padding: 6px;
-  border: 1px solid #4a90e2;
-  background: #4a90e2;
-  color: white;
-  border-radius: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--fla-line-strong);
+  background: var(--fla-card);
+  color: var(--fla-ink);
+  border-radius: var(--fla-r-sm);
   cursor: pointer;
+  font-family: inherit;
   font-size: 13px;
+  transition: background 0.12s, border-color 0.12s;
 }
-button:hover { background: #3d7fcc; }
-button:disabled, button:disabled:hover {
-  background: #d7d7d7;
-  border-color: #d7d7d7;
-  color: #fff;
+
+button:hover {
+  background: var(--fla-raised);
+  border-color: var(--fla-ink-faint);
+}
+
+/* One filled action per popup: opening the workbook is the main exit. */
+#openSidepanel {
+  background: var(--fla-primary);
+  border-color: var(--fla-primary);
+  color: var(--fla-on-primary);
+  font-weight: 500;
+}
+
+#openSidepanel:hover {
+  background: var(--fla-primary-soft);
+  border-color: var(--fla-primary-soft);
+}
+
+button:disabled,
+button:disabled:hover {
+  background: transparent;
+  border-color: var(--fla-line);
+  border-style: dashed;
+  color: var(--fla-ink-disabled);
+  cursor: not-allowed;
+}
+
+.hint {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--fla-ink-muted);
+  margin: 0 0 var(--fla-sm);
+}
+
+section .hint:last-child {
+  margin-bottom: 0;
+}
+
+/* -----------------------------
+   Shortcuts
+   ----------------------------- */
+
+.section-title {
+  margin: 0 0 var(--fla-sm);
+  font-family: var(--fla-sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fla-ink-faint);
+}
+
+.shortcut-list {
+  list-style: none;
+  margin: 0 0 var(--fla-gutter);
+  padding: 0;
+}
+
+.shortcut-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--fla-sm);
+  padding: 4px 0;
+  font-size: 13px;
+  color: var(--fla-ink);
+}
+
+.keys {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 3px;
+  min-width: 62px;
+}
+
+kbd {
+  font-family: var(--fla-sans);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.5;
+  padding: 1px 6px;
+  border: 1px solid var(--fla-line-strong);
+  border-bottom-width: 2px;
+  border-radius: var(--fla-r-sm);
+  background: var(--fla-sunken);
+  color: var(--fla-ink);
+}
+
+/* Stacked buttons inside one section (Open a PDF / Reopen this PDF) need
+   their own gap — sections only space their own edges. */
+section button + button {
+  margin-top: var(--fla-sm);
+}
+
+section button + .hint {
+  margin-top: var(--fla-sm);
+  margin-bottom: 0;
+}
+
+/* Inline action inside a settings row (Tutorial → Replay). Sized to the text so
+   it reads as part of the row rather than as a page-level button. */
+.link-btn {
+  width: auto;
+  padding: 4px 10px;
+  border: 1px solid var(--fla-line-strong);
+  border-radius: var(--fla-r-sm);
+  background: var(--fla-card);
+  color: var(--fla-ink-muted);
+  font-family: var(--fla-sans);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.link-btn:hover {
+  background: var(--fla-raised);
+  border-color: var(--fla-ink-faint);
+  color: var(--fla-ink);
+}
+
+/* A settings row whose master switch is off: still readable, clearly inert. */
+.row.is-disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.row.is-disabled input {
   cursor: default;
 }
-/* Echoes back the selection the Practice button would send, so the user can
-   see they grabbed the right passage before the panel opens. */
-#practiceSelectionHint {
-  border-top: none;
-  padding-top: 6px;
+
+/* Inline "why isn't this working here?" marker, e.g. the reading aids being
+   web-pages-only. A real focusable element, not a bare glyph, so the
+   explanation in its title/aria-label is reachable by keyboard too. */
+.info {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 5px;
+  border: 1px solid var(--fla-line-strong);
+  border-radius: 50%;
+  color: var(--fla-ink-faint);
+  font-family: var(--fla-sans);
+  font-size: 9px;
   font-style: italic;
+  font-weight: 700;
+  line-height: 1;
+  cursor: help;
+  vertical-align: 1px;
 }
-.hint {
-  font-size: 10px;
-  color: #999;
-  border-top: 1px solid #eee;
-  padding-top: 8px;
+
+.info:hover,
+.info:focus-visible {
+  border-color: var(--fla-ink-faint);
+  color: var(--fla-ink-muted);
+}
+
+/* A note attached to the row above it, not a section of its own. */
+.hint--sub {
+  margin-top: 2px;
+  margin-bottom: var(--fla-sm);
+  font-size: 11px;
 }

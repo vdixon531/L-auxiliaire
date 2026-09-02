@@ -1,0 +1,309 @@
+/* Spotlight tour (lib/tour.js). Linked by welcome/welcome.html and
+   sidepanel/sidepanel.html; tokens only, from lib/theme.css. */
+
+:root {
+  /* The scrim is painted by the cutout's box-shadow, so it's a colour, not an
+     overlay element. Deep indigo rather than black — it reads as the palette
+     dimming rather than a hole punched in the page. */
+  --fla-tour-scrim: rgba(4, 22, 39, 0.62);
+  --fla-tour-ring: rgba(255, 255, 255, 0.9);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --fla-tour-scrim: rgba(0, 0, 0, 0.72);
+    --fla-tour-ring: rgba(198, 213, 232, 0.85);
+  }
+}
+
+:root[data-theme="dark"] {
+  --fla-tour-scrim: rgba(0, 0, 0, 0.72);
+  --fla-tour-ring: rgba(198, 213, 232, 0.85);
+}
+
+/* Above the side panel's .modal (z-index 10) and anything else we draw. */
+.fla-tour {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+/* Transparent, and only here to swallow clicks on the dimmed area. Hidden for
+   steps marked `interactive`, where the point is to let the user click through. */
+.fla-tour__blocker {
+  position: fixed;
+  inset: 0;
+  pointer-events: auto;
+  background: transparent;
+}
+
+.fla-tour__blocker[hidden] {
+  display: none;
+}
+
+/* The cutout. Its box-shadow spread is what dims everything outside it, so the
+   spotlit element keeps its true colours with no overlay on top of it. */
+.fla-tour__spot {
+  position: fixed;
+  border-radius: var(--fla-r);
+  box-shadow: 0 0 0 9999px var(--fla-tour-scrim);
+  outline: 2px solid var(--fla-tour-ring);
+  outline-offset: 0;
+  pointer-events: none;
+  transition: left 0.18s ease, top 0.18s ease, width 0.18s ease, height 0.18s ease;
+}
+
+.fla-tour__spot[hidden] {
+  display: none;
+}
+
+/* A centred step has nothing to point at, so the scrim needs painting by
+   something — the callout's own ::before covers the viewport instead. */
+.fla-tour--centred .fla-tour__callout::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: var(--fla-tour-scrim);
+  z-index: -1;
+}
+
+.fla-tour__callout {
+  position: fixed;
+  z-index: 1;
+  width: min(320px, calc(100vw - 24px));
+  box-sizing: border-box;
+  padding: var(--fla-md);
+  background: var(--fla-overlay);
+  color: var(--fla-ink);
+  border: 1px solid var(--fla-line);
+  border-radius: var(--fla-r-lg);
+  box-shadow: var(--fla-shadow);
+  pointer-events: auto;
+  font-family: var(--fla-sans);
+}
+
+/* `scale`, not `transform: scale()` — the centred variant needs
+   `transform: translate(-50%, -50%)`, and the individual scale property
+   composes with it instead of overwriting it. */
+@keyframes fla-tour-pop {
+  from {
+    opacity: 0;
+    scale: 0.92;
+  }
+  60% {
+    scale: 1.014;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+@keyframes fla-tour-spot-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.fla-tour__callout.is-in {
+  animation: fla-tour-pop 0.26s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+}
+
+.fla-tour__spot {
+  animation: fla-tour-spot-in 0.2s ease both;
+}
+
+/* Exit: the whole overlay fades rather than blinking out. Timed to match the
+   160ms removal delay in tour.js's destroy(). */
+.fla-tour--out {
+  opacity: 0;
+  transition: opacity 0.16s ease;
+  pointer-events: none;
+}
+
+.fla-tour__callout:focus {
+  outline: none;
+}
+
+/* Position only. The width deliberately stays the same as an anchored
+   callout's — a centred step used to be 400px against the anchored 320px,
+   which is what made the "whole passages" and "conjugation" steps read as two
+   different components. */
+.fla-tour--centred .fla-tour__callout {
+  left: 50% !important;
+  top: 50% !important;
+  transform: translate(-50%, -50%);
+}
+
+.fla-tour__title {
+  margin: 0 0 var(--fla-sm);
+  font-family: var(--fla-serif);
+  font-size: 21px;
+  font-weight: 500;
+  line-height: 1.25;
+  color: var(--fla-heading);
+}
+
+.fla-tour__body {
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--fla-ink);
+}
+
+.fla-tour__body p {
+  margin: 0 0 var(--fla-sm);
+}
+
+.fla-tour__body p:last-child {
+  margin-bottom: 0;
+}
+
+/* Consecutive one-line paragraphs (the "▶ reads it aloud" style lists) sit
+   tighter than prose paragraphs, so they read as a list without needing one. */
+.fla-tour__body p + p {
+  margin-top: -2px;
+}
+
+.fla-tour__body strong {
+  font-weight: 600;
+}
+
+/* An inline key cap, for the shortcuts chapter. */
+.fla-tour__body kbd {
+  font-family: var(--fla-sans);
+  font-size: 11px;
+  padding: 1px 5px;
+  border: 1px solid var(--fla-line-strong);
+  border-bottom-width: 2px;
+  border-radius: var(--fla-r-sm);
+  background: var(--fla-sunken);
+  color: var(--fla-ink);
+}
+
+.fla-tour__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fla-sm);
+  margin-top: var(--fla-md);
+  padding-top: var(--fla-gutter);
+  border-top: 1px solid var(--fla-line);
+}
+
+.fla-tour__count {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--fla-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.fla-tour__btns {
+  display: flex;
+  gap: 6px;
+}
+
+.fla-tour__btns button {
+  padding: 6px 12px;
+  border: 1px solid var(--fla-line-strong);
+  border-radius: var(--fla-r-sm);
+  background: var(--fla-overlay);
+  color: var(--fla-ink-muted);
+  font-family: var(--fla-sans);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.fla-tour__btns button:hover {
+  background: var(--fla-raised);
+  border-color: var(--fla-ink-faint);
+  color: var(--fla-ink);
+}
+
+.fla-tour__btns button[hidden] {
+  display: none;
+}
+
+/* One filled action per callout: keep going. */
+.fla-tour__next {
+  background: var(--fla-primary) !important;
+  border-color: var(--fla-primary) !important;
+  color: var(--fla-on-primary) !important;
+  font-weight: 500;
+}
+
+.fla-tour__next:hover {
+  background: var(--fla-primary-soft) !important;
+  border-color: var(--fla-primary-soft) !important;
+}
+
+/* Skip is always reachable but never competes with Next. */
+.fla-tour__skip {
+  border-color: transparent !important;
+  color: var(--fla-ink-muted) !important;
+}
+
+.fla-tour__skip:hover {
+  color: var(--fla-ink) !important;
+}
+
+/* Arrow — a rotated square tucked under the callout's edge, so it inherits the
+   card's background and border and reads as one shape with it. */
+.fla-tour__arrow {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: var(--fla-overlay);
+  border: 1px solid var(--fla-line);
+  transform: rotate(45deg);
+}
+
+.fla-tour__callout[data-placement="centre"] .fla-tour__arrow {
+  display: none;
+}
+
+.fla-tour__callout[data-placement="bottom"] .fla-tour__arrow {
+  top: -7px;
+  left: var(--fla-tour-arrow-pos, 50%);
+  margin-left: -6px;
+  border-right: none;
+  border-bottom: none;
+}
+
+.fla-tour__callout[data-placement="top"] .fla-tour__arrow {
+  bottom: -7px;
+  left: var(--fla-tour-arrow-pos, 50%);
+  margin-left: -6px;
+  border-left: none;
+  border-top: none;
+}
+
+.fla-tour__callout[data-placement="right"] .fla-tour__arrow {
+  left: -7px;
+  top: var(--fla-tour-arrow-pos, 50%);
+  margin-top: -6px;
+  border-right: none;
+  border-top: none;
+}
+
+.fla-tour__callout[data-placement="left"] .fla-tour__arrow {
+  right: -7px;
+  top: var(--fla-tour-arrow-pos, 50%);
+  margin-top: -6px;
+  border-left: none;
+  border-bottom: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fla-tour__spot,
+  .fla-tour__callout,
+  .fla-tour__callout.is-in,
+  .fla-tour--out {
+    transition: none;
+    animation: none;
+  }
+}

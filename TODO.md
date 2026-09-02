@@ -2,6 +2,21 @@
 
 Current phase: **Phase 4 — PDF support** (Phase 3, Leitner SRS, deliberately
 deferred — the user prioritized PDF support instead at this stage)
+## Defects
+
+1. [] Tutorial - steps 4-6 the step info message is appearing below the pop up, so the point to the button is hidden
+2. [] Tutorial - steps 4-6 when it opens the workbook and you click got it on the pop up there it should move you to the next step.
+3. [] Tutorial - lets swap the order of steps 4 and 5?
+4. [] Tutorial - This message "That's the page half. The other half is your workbook — take its tour next." should be a pop up box like the ones used in the steps 1-6 that appears over the related button. It should disappear in the appropriate number of seconds.
+5. [] Tutorial - for "Select a whole passage" the step should allow the user to actually perform the action and see how it works, on the sample sentence.
+6. [] In the conjugation pop ups,  "~7,000 verbs bundled with the extension — no network involved." 7000 is mentioned too many times and no network too. lets only mention 7000 once on the sidepanel pop up, dont want to see it on any of the main page pop ups.
+7. [] Reading a pdf step is wayy too long and unnecessary. The user doesn't need all that info just show them where to tap and how to open a pdf
+8. []
+
+## Features 
+1. [] I want to add a footer on the tutorial page and maybe something at the bottom of the workbook(or maybe only settings page) that says "Made by Valmik" or a link to the repo and a FAQs page.
+2. [] Create a FAQs page and a privacy policy
+
 
 ## Weekend 1 tasks (in order)
 
@@ -179,7 +194,7 @@ the full rationale.
        accepted cost of not requesting new host permissions).
 7. [x] Sidepanel: PDF entries show `entry.pdfTitle || "PDF document"` instead
        of the raw content hash.
-8. [ ] Load-test in a real browser: open a real multi-page PDF via the file
+8. [x] Load-test in a real browser: open a real multi-page PDF via the file
        picker, confirm text renders and click/hover/selection-translate all
        work over PDF.js's text-layer spans, confirm Save/Highlight both land
        in the same `pdf:<hash>` bucket on reopening the same file, and try
@@ -187,10 +202,10 @@ the full rationale.
        CORS-blocked host to confirm the failure message is sane rather than
        a silent hang. **Unvalidated in a real browser yet** — same caveat
        every previous phase had before its own hands-on pass.
-9. [ ] PDF.js's text runs don't always align 1:1 with visual word boundaries
+9. [x] PDF.js's text runs don't always align 1:1 with visual word boundaries
        (justified text, rotated text, multi-column layouts) — expect some
        hover-precision tuning once tested against a real complex-layout PDF.
-10. [ ] Revisit auto-interception (`declarativeNetRequest` + broad host
+10. [x] Revisit auto-interception (`declarativeNetRequest` + broad host
         permissions) later if manual-open proves too much friction in
         practice — deliberately deferred, not ruled out.
 11. [x] Hands-on feedback round after the first real-browser test — three

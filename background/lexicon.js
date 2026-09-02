@@ -24,13 +24,31 @@ function shardKeyOf(normalized) {
   return /^[a-z]/.test(normalized) ? normalized[0] : "_other";
 }
 
+// Mirrors conjugation.js's fetchJsonWithRetry — see the comment there. This
+// loader is the more exposed of the two: annotator.js calls LOOKUP_WORDS on
+// every page scan, so a transient post-wake fetch failure here would recur
+// on every single page instead of showing up once.
+async function fetchJsonWithRetry(url) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const resp = await fetch(url);
+      return resp.ok ? await resp.json() : {};
+    } catch (err) {
+      if (attempt > 0) {
+        console.error("[FLA lexicon] failed to load", url, err);
+        return {};
+      }
+      await new Promise((r) => setTimeout(r, 200));
+    }
+  }
+}
+
 async function loadLexiconShard(key) {
   const cached = lexiconShardCache.get(key);
   if (cached) return cached;
 
   const url = chrome.runtime.getURL(`data/lexicon/${key}.json`);
-  const resp = await fetch(url);
-  const data = resp.ok ? await resp.json() : {};
+  const data = await fetchJsonWithRetry(url);
   lexiconShardCache.set(key, data);
   return data;
 }
@@ -38,8 +56,7 @@ async function loadLexiconShard(key) {
 async function loadCognates() {
   if (cognatesCache) return cognatesCache;
   const url = chrome.runtime.getURL("data/cognates.json");
-  const resp = await fetch(url);
-  cognatesCache = resp.ok ? await resp.json() : {};
+  cognatesCache = await fetchJsonWithRetry(url);
   return cognatesCache;
 }
 

@@ -1,0 +1,344 @@
+/* Welcome page. Tokens come from lib/theme.css; the bubble and annotated words
+   come from content/popup.css, unchanged, so the demo matches a real page. */
+
+body {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.masthead {
+  padding: var(--fla-xl) var(--fla-lg) var(--fla-lg);
+  text-align: center;
+  border-bottom: 1px solid var(--fla-line);
+  background: var(--fla-card);
+}
+
+.masthead h1 {
+  margin: 0;
+  font-family: var(--fla-serif);
+  font-size: 44px;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  color: var(--fla-heading);
+}
+
+.tagline {
+  margin: var(--fla-xs) 0 0;
+  font-family: var(--fla-serif);
+  font-size: 17px;
+  font-style: italic;
+  color: var(--fla-ink-muted);
+}
+
+.stage {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: var(--fla-xl) var(--fla-lg) var(--fla-xl);
+}
+
+.stage > section {
+  margin-bottom: var(--fla-xl);
+}
+
+/* -----------------------------
+   Drawn browser toolbar (step 2)
+   ----------------------------- */
+
+.toolbar-mock__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--fla-gutter);
+  padding: var(--fla-sm) var(--fla-gutter);
+  background: var(--fla-raised);
+  border: 1px solid var(--fla-line);
+  border-radius: var(--fla-r);
+}
+
+.toolbar-mock__dots {
+  display: flex;
+  gap: 5px;
+  flex: 0 0 auto;
+}
+
+.toolbar-mock__dots i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--fla-line-strong);
+}
+
+.toolbar-mock__omni {
+  flex: 1;
+  padding: 5px var(--fla-gutter);
+  background: var(--fla-card);
+  border: 1px solid var(--fla-line);
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--fla-ink-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toolbar-mock__puzzle {
+  flex: 0 0 auto;
+  font-size: 15px;
+  opacity: 0.75;
+}
+
+.toolbar-mock__icon {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--fla-r-sm);
+  background: var(--fla-card);
+  border: 1px solid var(--fla-line);
+}
+
+.toolbar-mock__cap {
+  margin: var(--fla-sm) 0 0;
+  font-size: 13px;
+  color: var(--fla-ink-muted);
+}
+
+/* -----------------------------
+   Demo article
+   ----------------------------- */
+
+.demo__eyebrow,
+.chapters__lede {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fla-ink-faint);
+  margin: 0 0 var(--fla-sm);
+}
+
+.demo__article {
+  position: relative;
+  padding: var(--fla-lg);
+  background: var(--fla-card);
+  border: 1px solid var(--fla-line);
+  border-radius: var(--fla-r);
+  box-shadow: var(--fla-shadow-sm);
+  font-family: var(--fla-serif);
+  font-size: 19px;
+  line-height: 1.75;
+  color: var(--fla-ink);
+}
+
+/* The demo's words are clickable, unlike a real page where the whole document
+   is. Only the hover cue differs — the classes and colours are the real ones. */
+.demo__article .fla-word {
+  pointer-events: auto;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.demo__article .fla-word:hover {
+  background: var(--fla-primary-tint);
+}
+
+.demo__hint {
+  margin: var(--fla-sm) 0 0;
+  font-size: 13px;
+  color: var(--fla-ink-muted);
+}
+
+/* -----------------------------
+   Actions
+   ----------------------------- */
+
+.cta__row {
+  display: flex;
+  gap: var(--fla-sm);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* Shown once the six steps are done — the workbook is the half of the product
+   this page can't demonstrate, so say so rather than leaving the user on a
+   finished tour with nowhere obvious to go. */
+.cta__prompt {
+  margin: 0 0 var(--fla-gutter);
+  padding: var(--fla-sm) var(--fla-gutter);
+  border-left: 3px solid var(--fla-accent-line);
+  background: var(--fla-accent-tint);
+  border-radius: 0 var(--fla-r-sm) var(--fla-r-sm) 0;
+  font-size: 14px;
+  color: var(--fla-ink);
+}
+
+.cta__prompt[hidden] {
+  display: none;
+}
+
+.cta__quiet {
+  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  color: var(--fla-ink-muted);
+  font-family: var(--fla-sans);
+  font-size: 14px;
+  cursor: pointer;
+  border-radius: var(--fla-r-sm);
+}
+
+.cta__quiet:hover {
+  background: var(--fla-raised);
+  color: var(--fla-ink);
+}
+
+.cta__quiet[hidden] {
+  display: none;
+}
+
+.cta__primary,
+.cta__secondary {
+  padding: 10px 18px;
+  border-radius: var(--fla-r-sm);
+  font-family: var(--fla-sans);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.cta__primary {
+  background: var(--fla-primary);
+  border: 1px solid var(--fla-primary);
+  color: var(--fla-on-primary);
+  font-weight: 500;
+}
+
+.cta__primary:hover {
+  background: var(--fla-primary-soft);
+  border-color: var(--fla-primary-soft);
+}
+
+.cta__secondary {
+  background: transparent;
+  border: 1px solid var(--fla-line-strong);
+  color: var(--fla-ink-muted);
+}
+
+.cta__secondary:hover {
+  background: var(--fla-raised);
+  color: var(--fla-ink);
+}
+
+.cta__secondary[hidden] {
+  display: none;
+}
+
+/* -----------------------------
+   Chapter menu
+   ----------------------------- */
+
+.chapters[hidden] {
+  display: none;
+}
+
+.chapters h2 {
+  margin: 0 0 var(--fla-xs);
+  font-family: var(--fla-serif);
+  font-size: 26px;
+  font-weight: 500;
+  color: var(--fla-heading);
+}
+
+.chapters__lede {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.6;
+  margin-bottom: var(--fla-md);
+}
+
+.chapters__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--fla-gutter);
+}
+
+.chapter {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  gap: 2px var(--fla-sm);
+  padding: var(--fla-gutter);
+  text-align: left;
+  background: var(--fla-card);
+  border: 1px solid var(--fla-line);
+  border-radius: var(--fla-r);
+  cursor: pointer;
+  font-family: var(--fla-sans);
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.chapter:hover {
+  border-color: var(--fla-ink-faint);
+  background: var(--fla-sunken);
+}
+
+.chapter__icon {
+  grid-row: 1 / 3;
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.chapter__name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--fla-heading);
+}
+
+.chapter__desc {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--fla-ink-muted);
+}
+
+/* A chapter the user has already taken. */
+.chapter[data-seen="1"] .chapter__name::after {
+  content: " ✓";
+  color: var(--fla-accent);
+}
+
+/* -----------------------------
+   Footer
+   ----------------------------- */
+
+.foot {
+  padding-top: var(--fla-lg);
+  border-top: 1px solid var(--fla-line);
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--fla-ink-muted);
+}
+
+.foot p {
+  margin: 0 0 var(--fla-sm);
+}
+
+.foot__status:empty {
+  display: none;
+}
+
+.foot__status {
+  margin: 0;
+  padding: var(--fla-sm) var(--fla-gutter);
+  border-radius: var(--fla-r-sm);
+  background: var(--fla-warn-tint);
+  color: var(--fla-warn);
+}
+
+.foot__status[data-ok="1"] {
+  background: var(--fla-accent-tint);
+  color: var(--fla-accent);
+}

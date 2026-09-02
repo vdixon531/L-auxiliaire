@@ -1,72 +1,33 @@
 // popup.js
 
 import { putHandoff } from "../lib/pdf-handoff.js";
-import { initSettingsPanel, refreshReadingLevel } from "../lib/settings-panel.js";
+import { initSettingsPanel, refreshReadingLevel, watchReadingLevel } from "../lib/settings-panel.js";
+import { initThemeMode } from "../lib/theme-mode.js";
 
 const $ = (id) => document.getElementById(id);
 
 async function init() {
+  await initThemeMode();
   await initSettingsPanel();
   refreshReadingLevel();
+  // The popup is short-lived, but a page still finishing its first scan will
+  // push a level while it's open.
+  watchReadingLevel();
   checkForPdfTab();
-  checkForSelection();
 }
-
-// -----------------------------
-// Practice the page's selected text
-// -----------------------------
-
-// The popup can't read the page, so it asks whatever is running in the tab.
-// Regular pages have content-script.js (reachable with tabs.sendMessage);
-// the PDF viewer is an extension page, where bridge.js listens on the
-// runtime broadcast instead — both answer the same GET_SELECTION message.
-async function getTabSelection(tabId) {
-  try {
-    const resp = await chrome.tabs.sendMessage(tabId, { type: "GET_SELECTION" });
-    if (resp?.text) return resp.text;
-  } catch {
-    // No content script in this tab (extension page, chrome://, the web
-    // store) — fall through to the broadcast.
-  }
-  try {
-    const resp = await chrome.runtime.sendMessage({ type: "GET_SELECTION" });
-    return resp?.text || "";
-  } catch {
-    return "";
-  }
-}
-
-let pendingSelection = "";
-
-async function checkForSelection() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.id) return;
-  pendingSelection = await getTabSelection(tab.id);
-  const btn = $("practiceSelection");
-  const hint = $("practiceSelectionHint");
-  btn.disabled = !pendingSelection;
-  hint.textContent = pendingSelection
-    ? `“${pendingSelection.slice(0, 60)}${pendingSelection.length > 60 ? "…" : ""}”`
-    : "Select a passage on the page first.";
-}
-
-$("practiceSelection").addEventListener("click", async () => {
-  if (!pendingSelection) return;
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.id) return;
-  // Same handoff the content-script bubble's 🎙 Practice button uses — the
-  // intent is written first so a panel opening fresh finds it in checkIntent(),
-  // and an already-open one picks it up via storage.onChanged.
-  await chrome.storage.local.set({
-    sidepanelIntent: { view: "practice", text: pendingSelection, at: Date.now() }
-  });
-  await chrome.sidePanel.open({ tabId: tab.id });
-  window.close();
-});
 
 $("openSidepanel").addEventListener("click", async () => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (tab?.id) await chrome.sidePanel.open({ tabId: tab.id });
+  // The popup has done its job — leaving it floating over the panel it just
+  // opened is only in the way.
+  window.close();
+});
+
+// chrome:// URLs can't be linked to from a page, but an extension page is
+// allowed to open one in a tab.
+$("editShortcuts").addEventListener("click", () => {
+  chrome.tabs.create({ url: "chrome://extensions/shortcuts" });
 });
 
 // -----------------------------
@@ -84,8 +45,16 @@ async function openHandoffInViewer(arrayBuffer, filename) {
   const token = await putHandoff(arrayBuffer, filename);
   // Mozilla's own vendored PDF.js viewer (pdf-viewer/vendor/web/viewer.html),
   // not a custom page — see CLAUDE.md for why.
+  // The empty `file=` matters. viewer.mjs does:
+  //     file = params.get("file") ?? AppOptions.get("defaultUrl");
+  // and ?? only falls through on null/undefined — so an empty-string `file`
+  // stops it ever reading defaultUrl, whose stock value is a sample PDF we
+  // deliberately didn't vendor. An empty file then fails validateFileURL's
+  // falsy guard harmlessly and `if (file)` skips the open entirely, so the
+  // viewer waits for our own open() with no stray request. Setting the option
+  // from bridge.js is a race against run()'s first await; this is not.
   await chrome.tabs.create({
-    url: chrome.runtime.getURL(`pdf-viewer/vendor/web/viewer.html?handoff=${token}`)
+    url: chrome.runtime.getURL(`pdf-viewer/vendor/web/viewer.html?file=&handoff=${token}`)
   });
 }
 

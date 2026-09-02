@@ -1,0 +1,291 @@
+/* "The Library at Dusk" — the extension's shared design tokens.
+ *
+ * Ported from the L'auxiliaire Stitch design system: soft paper creams,
+ * scholarly indigo, muted sage/terracotta accents, and a serif-forward
+ * typographic hierarchy (EB Garamond for French, Public Sans for chrome).
+ *
+ * Loaded by every regular extension page (popup, side panel, mic-grant).
+ * The in-page bubble can't share this file — a content script must not define
+ * anything at :root or it leaks onto the host page — so content/popup.css
+ * keeps a scoped copy of the tokens it needs. Keep the two in sync.
+ */
+
+@font-face {
+  font-family: "EB Garamond";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("../fonts/eb-garamond-latin.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "EB Garamond";
+  font-style: italic;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("../fonts/eb-garamond-latin-italic.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Public Sans";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("../fonts/public-sans-latin.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Public Sans";
+  font-style: italic;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("../fonts/public-sans-latin-italic.woff2") format("woff2");
+}
+
+:root {
+  color-scheme: light dark;
+
+  /* Type */
+  --fla-serif: "EB Garamond", "Iowan Old Style", "Palatino Linotype", Palatino,
+    Georgia, serif;
+  --fla-sans: "Public Sans", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, sans-serif;
+
+  /* Surfaces — paper creams, lightest card on a slightly darker ground */
+  --fla-bg: #faf9f5;
+  --fla-card: #ffffff;
+  --fla-sunken: #f4f4f0;
+  --fla-raised: #efeeea;
+  --fla-variant: #e3e2df;
+
+  /* Ink. Three weights, and every one of them clears 4.5:1 on both --fla-bg
+     and --fla-card — --fla-ink-faint is the floor, not a decorative grey, so
+     never stack opacity on top of it (see the note by --fla-line). */
+  --fla-ink: #1b1c1a;
+  --fla-ink-muted: #44474c;
+  --fla-ink-faint: #5b6370;
+  /* Inactive controls only. Deliberately far weaker than --fla-ink-faint
+     (2.6:1 vs 6.1:1 on a card) — reusing the faint ink is why a disabled
+     button still looked live. Disabled controls are exempt from the WCAG
+     contrast minimum; this stays readable enough to see WHAT is off. */
+  --fla-ink-disabled: #9aa1ad;
+
+  /* Headline ink for the serif — the strongest voice on the page. Separate
+     from --fla-primary because that token has to stay a *fill* colour, and in
+     dark mode a fill light enough to carry black button text is far too washed
+     out to set a word in. */
+  --fla-heading: #041627;
+
+  /* Lines — hairlines, never heavy borders. These are the only tokens allowed
+     to sit below text contrast; if something needs to be quiet, use a lighter
+     ink token rather than opacity, which compounds against the surface and
+     drops real text under 3:1. */
+  --fla-line: #dcdbd6;
+  --fla-line-strong: #c4c6cd;
+
+  /* Indigo: the primary voice. Near-black blue, used for filled buttons. */
+  --fla-primary: #041627;
+  --fla-primary-soft: #1a2b3c;
+  --fla-on-primary: #ffffff;
+  --fla-primary-tint: #eef1f6;
+
+  /* The surface for things that float ABOVE the page — tour callouts, popup
+     menus. Deliberately not --fla-card: a callout drawn in the same colour as
+     the cards behind it doesn't read as being on top of them. A cool lift,
+     kept subtle enough not to look like a different product. */
+  --fla-overlay: #eef2fa;
+
+  /* Sage: the "learned it" / affirmative voice */
+  --fla-accent: #476553;
+  --fla-accent-deep: #2f4d3c;
+  /* Deepened from #eef6f1 (which separated from the card by only 1.10) to
+     carry the same visual weight as the dark theme's tint, which sits at 1.32.
+     --fla-accent-line had to come down with it: the old #c9ebd4 measured 1.00
+     against this tint, so the quote block's left edge would have disappeared
+     entirely. Only the sage pair moved — the warn/error tints are unchanged. */
+  --fla-accent-tint: #cee9db;
+  --fla-accent-line: #5aa87a;
+
+  /* Terracotta: warnings and near-misses, never alarm */
+  --fla-warn: #812818;
+  --fla-warn-tint: #fdf1ec;
+  --fla-warn-line: #ffb4a5;
+
+  /* Error */
+  --fla-error: #ba1a1a;
+  --fla-error-tint: #ffdad6;
+
+  /* Space — a 4px unit */
+  --fla-xs: 4px;
+  --fla-sm: 8px;
+  --fla-gutter: 12px;
+  --fla-md: 16px;
+  --fla-lg: 24px;
+  --fla-xl: 32px;
+
+  /* Radius */
+  --fla-r-sm: 4px;
+  --fla-r: 8px;
+  --fla-r-lg: 12px;
+
+  --fla-shadow: 0 4px 20px -2px rgba(4, 22, 39, 0.15);
+  --fla-shadow-sm: 0 1px 3px rgba(4, 22, 39, 0.07);
+}
+
+/* The dark palette is written out twice, on purpose.
+ *
+ * A media query and a plain attribute selector can't be combined into one
+ * rule, and there's no build step to factor them, so the values live in both
+ * `@media (prefers-color-scheme: dark) :root:not([data-theme="light"])` (the
+ * default: follow the OS, unless the user has explicitly chosen light) and
+ * `:root[data-theme="dark"]` (an explicit choice, which must win over a light
+ * OS). `node scripts/check-contrast.js` asserts the two blocks are identical,
+ * so the duplication is a checked invariant rather than a drift risk.
+ *
+ * lib/theme-mode.js is what sets data-theme; content/annotator.js does the
+ * equivalent on host pages with `.fla-theme-dark`/`.fla-theme-light` classes,
+ * since the bubble can't use this file.
+ *
+ * Notes on the values themselves:
+ *  - Lifted off pure black — a dusk-blue ground, not a void. The card sits
+ *    *above* the ground here, the inverse of the light theme's paper.
+ *  - The ink ramp is pulled far lighter than a naive inversion. Dark surfaces
+ *    need much more separation than light ones to read as the same hierarchy;
+ *    a mechanically flipped ramp looks plausible in a swatch and is genuinely
+ *    hard to read in place. Every ink here clears 8:1 on the card.
+ */
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --fla-bg: #0c0f13;
+    --fla-card: #1a2029;
+    --fla-sunken: #10141a;
+    --fla-raised: #232b36;
+    --fla-variant: #2f3845;
+
+    --fla-ink: #f7f5f0;
+    --fla-ink-muted: #dadfe6;
+    --fla-ink-faint: #b0b9c5;
+    --fla-ink-disabled: #5d6672;
+
+    --fla-heading: #f7f5f0;
+
+    --fla-line: #333c48;
+    --fla-line-strong: #4d5866;
+
+    /* On a dark ground the indigo inverts to its light tint so filled
+       controls stay legible — but only as a *fill*; --fla-heading carries
+       the serif instead. */
+    --fla-primary: #c6d5e8;
+    --fla-primary-soft: #dfeafd;
+    --fla-on-primary: #08131f;
+    --fla-primary-tint: #1f2d3e;
+    --fla-overlay: #26303f;
+
+    --fla-accent: #b4dcc3;
+    --fla-accent-deep: #d3f0dc;
+    /* Was #16221b — the same luminance as --fla-card (ratio 1.00), so the
+       "highlighted" context sentence didn't read as a surface at all, just a
+       weirdly-hued patch of the same card. Dark, low-chroma colors collapse
+       hue distinctions almost entirely, unlike the light theme's pale tint,
+       which separates from white by hue and chroma even at a similar
+       luminance ratio. Lifted in lightness (not just re-hued) so it reads as
+       a raised sage surface; --fla-accent-line brightened to match, so the
+       left-border edge is visible against both the tint and the card. */
+    --fla-accent-tint: #23392e;
+    --fla-accent-line: #4a7a58;
+
+    --fla-warn: #ffc4b5;
+    /* Same fix as --fla-accent-tint just above, for the same reason: #2f1e19
+       was luminance-indistinguishable from --fla-card (ratio 1.03) — the mic
+       hint and near-miss highlight were invisible as boxes, not just quiet. */
+    --fla-warn-tint: #462d25;
+    --fla-warn-line: #94402d;
+
+    --fla-error: #ffbcb4;
+    /* Same fix, same reason (was #421210, ratio 1.03 against --fla-card). */
+    --fla-error-tint: #5e1a17;
+
+    --fla-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.55);
+    --fla-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  }
+}
+
+:root[data-theme="dark"] {
+  --fla-bg: #0c0f13;
+  --fla-card: #1a2029;
+  --fla-sunken: #10141a;
+  --fla-raised: #232b36;
+  --fla-variant: #2f3845;
+
+  --fla-ink: #f7f5f0;
+  --fla-ink-muted: #dadfe6;
+  --fla-ink-faint: #b0b9c5;
+  --fla-ink-disabled: #5d6672;
+
+  --fla-heading: #f7f5f0;
+
+  --fla-line: #333c48;
+  --fla-line-strong: #4d5866;
+
+  --fla-primary: #c6d5e8;
+  --fla-primary-soft: #dfeafd;
+  --fla-on-primary: #08131f;
+  --fla-primary-tint: #1f2d3e;
+  --fla-overlay: #26303f;
+
+  --fla-accent: #b4dcc3;
+  --fla-accent-deep: #d3f0dc;
+  --fla-accent-tint: #23392e;
+  --fla-accent-line: #4a7a58;
+
+  --fla-warn: #ffc4b5;
+  --fla-warn-tint: #462d25;
+  --fla-warn-line: #94402d;
+
+  --fla-error: #ffbcb4;
+  --fla-error-tint: #5e1a17;
+
+  --fla-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.55);
+  --fla-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+/* An explicit choice also has to tell the UA which form controls to draw —
+   checkboxes, scrollbars and the colour swatches aren't ours to paint. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+/* -----------------------------------------------------------------
+   Shared primitives — the handful of things every page repeats.
+   ----------------------------------------------------------------- */
+
+body {
+  font-family: var(--fla-sans);
+  background: var(--fla-bg);
+  color: var(--fla-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Small uppercase label — language tags, section eyebrows, chip text. */
+.fla-label {
+  font-family: var(--fla-sans);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fla-ink-faint);
+}
+
+/* French, wherever it appears, is set in the serif. */
+.fla-fr {
+  font-family: var(--fla-serif);
+}
+
+/* Buttons: one filled "primary action" per surface, everything else a
+   quiet hairline-outlined button. Set on bare elements per page rather
+   than here, since each page's markup predates the class names. */

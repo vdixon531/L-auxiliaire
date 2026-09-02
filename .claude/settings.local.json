@@ -14,7 +14,17 @@
       "Bash(awk '/<template name=\"dép:ecer\"/,/<\\\\/template>/' scripts/verbiste-source/conjugations-fr.xml)",
       "WebSearch",
       "WebFetch(domain:developer.chrome.com)",
-      "WebFetch(domain:www.deepl.com)"
+      "WebFetch(domain:www.deepl.com)",
+      "Bash(cd \"C:/Users/Valmik/Documents/L'auxiliaire\" && echo \"=== conjugation.js fetch ===\" && grep -n \"fetch\\\\|getURL\" background/conjugation.js && echo && echo \"=== saveVerb in service-worker ===\" && sed -n '/^async function saveVerb/,/^}/p' background/service-worker.js)",
+      "Bash(cp background/conjugation.js /tmp/conj.mjs)",
+      "Bash(cp background/lexicon.js /tmp/lex.mjs)",
+      "Bash(node --check /tmp/conj.mjs)",
+      "Bash(node --check /tmp/lex.mjs)",
+      "Bash(node scripts/check-refs.js)",
+      "Bash(cd \"C:/Users/Valmik/Documents/L'auxiliaire\" && sed -n '/^chrome.storage.onChanged.addListener/,/^}\\);/p' sidepanel/sidepanel.js && echo \"=== does anything watch vocab? ===\" && grep -n \"changes.vocab\" sidepanel/sidepanel.js || echo \"  no — the panel never reacts to a save from elsewhere\")"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\Valmik\\Documents\\L'auxiliaire\\background"
     ]
   }
 }

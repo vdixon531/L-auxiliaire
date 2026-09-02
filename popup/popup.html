@@ -2,6 +2,7 @@
 <html>
   <head>
     <meta charset="utf-8" />
+    <link rel="stylesheet" href="../lib/theme.css" />
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
@@ -17,17 +18,24 @@
         <span>Slower speech</span>
         <input type="checkbox" id="slowSpeech" />
       </label>
-    </section>
-
-    <section class="settings">
-      <p class="hint">Translation runs on-device via Chrome's built-in AI — no account or API key needed. Requires Chrome 138+.</p>
+      <label class="row">
+        <span>Appearance</span>
+        <select id="themeMode">
+          <option value="system">Match system</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </label>
     </section>
 
     <section class="reading-aids">
       <label class="row">
-        <span>Gender / plural color coding</span>
+        <span>Gender / plural color coding
+          <span class="info" tabindex="0" role="note" aria-label="Web pages only — the PDF viewer doesn't colour words yet. Click-to-translate, saving and conjugation all work there as normal." title="Web pages only — the PDF viewer doesn't colour words yet. Click-to-translate, saving and conjugation all work there as normal.">i</span>
+        </span>
         <input type="checkbox" id="colorCodingToggle" />
       </label>
+      <p class="hint hint--sub">Applies to web pages. Not available in the PDF viewer yet.</p>
       <label class="row">
         <span>Masculine</span>
         <span class="controls">
@@ -56,23 +64,10 @@
           <input type="color" id="colorNeutral" />
         </span>
       </label>
-      <label class="row">
-        <span>Frequency dimming</span>
-        <input type="checkbox" id="frequencyDimmingToggle" />
-      </label>
-      <label class="row">
-        <span>Cognate highlighting</span>
-        <input type="checkbox" id="cognateHighlightingToggle" />
-      </label>
       <div class="row">
         <span>Reading level</span>
         <span id="readingLevel">—</span>
       </div>
-    </section>
-
-    <section class="practice">
-      <button id="practiceSelection" disabled>🎙 Practice selected text</button>
-      <p id="practiceSelectionHint" class="hint">Select a passage on the page first.</p>
     </section>
 
     <section class="pdf">
@@ -86,7 +81,32 @@
       <button id="openSidepanel">Open workbook</button>
     </section>
 
-    <div class="hint">Alt+T: toggle hover · Alt+R: read · Alt+S: save</div>
+    <section class="tutorial">
+      <div class="row">
+        <span>Tutorial</span>
+        <button id="replayTour" class="link-btn" type="button">Replay</button>
+      </div>
+    </section>
+
+    <section class="shortcuts">
+      <h2 class="section-title">Shortcuts</h2>
+      <ul class="shortcut-list">
+        <li>
+          <span class="keys"><kbd>Alt</kbd><kbd>T</kbd></span>
+          <span>Toggle hover-to-translate</span>
+        </li>
+        <li>
+          <span class="keys"><kbd>Alt</kbd><kbd>R</kbd></span>
+          <span>Read the selection aloud</span>
+        </li>
+        <li>
+          <span class="keys"><kbd>Alt</kbd><kbd>S</kbd></span>
+          <span>Translate &amp; save the selection</span>
+        </li>
+      </ul>
+      <button id="editShortcuts" class="link-btn">Change these keys</button>
+    </section>
+
 
     <script type="module" src="popup.js"></script>
   </body>

@@ -28,7 +28,11 @@ const FRENCH_WORDS = new Set(
    jamais quand parce bien faire fait dit peut veut sait si en
    lui eux moi toi cela rien peu beaucoup trop assez ainsi pourtant cependant
    puis ensuite afin selon vers pendant avant contre chaque plusieurs autre
-   autres fois monde temps chose gens`
+   autres fois monde temps chose gens
+   quel quelle quels quelles pourquoi combien merci oui bonjour salut
+   madame monsieur maintenant enfin ici voici aujourd hui appelle appelez
+   appeler parle parlez parler suis sommes sont avez avons allez allons
+   veux voulez pouvez pouvons faites faisons`
     .trim()
     .split(/\s+/)
 );
@@ -43,7 +47,10 @@ const ENGLISH_WORDS = new Set(
    between during both each few own same too
    i my am do know think want need see say go come time way well back even
    much good day us him thing work year take look use find give tell ask
-   feel try leave call people right little long great old new`
+   feel try leave call people right little long great old new
+   you name please thank hello yes okay something anything everything
+   nothing someone anyone everyone always never often sometimes really
+   maybe because through without around across against among`
     .trim()
     .split(/\s+/)
 );
@@ -70,13 +77,24 @@ export function detectLang(text, contextSentence = "", defaultLang = "fr") {
   // French orthography in the word itself is decisive; no context needed.
   if (FRENCH_CHARS.test(text) || FRENCH_ELISION.test(text)) return "fr";
 
-  // Otherwise prefer the sentence — that's where the signal actually lives.
-  const sample =
-    contextSentence && contextSentence.length > text.length ? contextSentence : text;
+  // The selection's OWN evidence is checked first, and context is only a
+  // fallback for the case this module exists for — a bare word carrying no
+  // signal of its own.
+  //
+  // Context used to *replace* the text whenever it was longer, which sent
+  // whole French sentences backwards on any English page that quoted them:
+  // "Comment vous appelez-vous ?" scores +2 for French alone, but surrounded
+  // by an English explanation the sample became the explanation, detection
+  // said "en", and the sentence was handed to an en->fr translator that
+  // returned it essentially unchanged. Language-learning pages — the exact
+  // pages this extension is for — are full of French quoted inside English.
+  const own = frenchScore(text);
+  if (own > 0) return "fr";
+  if (own < 0) return "en";
 
-  const score = frenchScore(sample);
-  if (score > 0) return "fr";
-  if (score < 0) return "en";
+  const fromContext = frenchScore(contextSentence);
+  if (fromContext > 0) return "fr";
+  if (fromContext < 0) return "en";
 
   // No evidence either way. Assume the user is reading French, since that is
   // what this extension is for; a wrong guess here is what the old

@@ -2,6 +2,9 @@
 <html>
   <head>
     <meta charset="utf-8" />
+    <link rel="stylesheet" href="../lib/theme.css" />
+    <link rel="stylesheet" href="../lib/tour.css" />
+    <link rel="stylesheet" href="../lib/flip.css" />
     <link rel="stylesheet" href="sidepanel.css" />
   </head>
   <body>
@@ -14,19 +17,48 @@
 
     <section id="vocab" class="view active">
       <div class="vocab-layout">
-        <aside id="workbookSidebar"></aside>
+        <aside id="workbookSidebar">
+          <button id="newCollection" class="rail-btn" title="Create an empty collection">＋ Collection</button>
+          <div id="workbookList"></div>
+        </aside>
         <div class="vocab-main">
           <div class="toolbar">
             <input id="vocabSearch" placeholder="Search saved words…" />
-            <button id="exportCsv">Export CSV</button>
-            <button id="exportAnki">Export Anki</button>
+            <button id="exportBtn" aria-haspopup="menu" aria-expanded="false">Export ▾</button>
           </div>
+
           <div id="workbookHeader" class="workbook-header" hidden>
             <span id="workbookTitle"></span>
             <button id="renameWorkbook" title="Rename this workbook">✎</button>
             <button id="deleteWorkbook" title="Delete this entire workbook">🗑</button>
           </div>
           <ul id="vocabList"></ul>
+          <button id="addWordBtn" class="add-word-tile" title="Add a word by typing it">
+            <span class="add-word-tile__plus">＋</span> Add a word
+          </button>
+          <form id="addWordForm" class="add-word" hidden>
+            <label class="add-word__field">
+              <span>Word or phrase</span>
+              <input id="addWordSource" type="text" required placeholder="e.g. la fenêtre" />
+            </label>
+            <label class="add-word__field">
+              <span>Translation <em>optional</em></span>
+              <input id="addWordTranslation" type="text" placeholder="leave blank to translate it for you" />
+            </label>
+            <label class="add-word__field">
+              <span>Sentence <em>optional</em></span>
+              <input id="addWordContext" type="text" placeholder="the sentence you met it in" />
+            </label>
+            <label class="add-word__field">
+              <span>Save to</span>
+              <select id="addWordDest"></select>
+            </label>
+            <div class="add-word__actions">
+              <button type="submit" id="addWordSubmit">Add word</button>
+              <button type="button" id="addWordCancel" class="secondary">Cancel</button>
+            </div>
+            <p id="addWordError" class="add-word__error" hidden></p>
+          </form>
         </div>
       </div>
     </section>
@@ -97,15 +129,26 @@
           <span>Slower speech</span>
           <input type="checkbox" id="slowSpeech" />
         </label>
+        <label class="row">
+          <span>Appearance</span>
+          <select id="themeMode">
+            <option value="system">Match system</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
+        </label>
       </section>
 
       <p class="hint">Translation runs on-device via Chrome's built-in AI — no account or API key needed. Requires Chrome 138+.</p>
 
       <section class="reading-aids">
         <label class="row">
-          <span>Gender / plural color coding</span>
+          <span>Gender / plural color coding
+            <span class="info" tabindex="0" role="note" aria-label="Web pages only — the PDF viewer doesn't colour words yet. Click-to-translate, saving and conjugation all work there as normal." title="Web pages only — the PDF viewer doesn't colour words yet. Click-to-translate, saving and conjugation all work there as normal.">i</span>
+          </span>
           <input type="checkbox" id="colorCodingToggle" />
         </label>
+        <p class="hint hint--sub">Applies to web pages. Not available in the PDF viewer yet.</p>
         <label class="row">
           <span>Masculine</span>
           <span class="controls">
@@ -134,20 +177,39 @@
             <input type="color" id="colorNeutral" />
           </span>
         </label>
-        <label class="row">
-          <span>Frequency dimming</span>
-          <input type="checkbox" id="frequencyDimmingToggle" />
-        </label>
-        <label class="row">
-          <span>Cognate highlighting</span>
-          <input type="checkbox" id="cognateHighlightingToggle" />
-        </label>
         <div class="row">
           <span>Reading level</span>
           <span id="readingLevel">—</span>
         </div>
       </section>
+
+      <section class="tutorial">
+        <div class="row">
+          <span>Tutorial</span>
+          <button id="replayTour" class="link-btn" type="button">Replay</button>
+        </div>
+      </section>
     </section>
+
+    <div id="exportMenu" class="ctx-menu" role="menu" hidden>
+      <button type="button" role="menuitem" data-format="csv">
+        <span class="ctx-menu__name">CSV</span>
+        <span class="ctx-menu__desc">A spreadsheet of every word, with context</span>
+      </button>
+      <button type="button" role="menuitem" data-format="anki">
+        <span class="ctx-menu__name">Anki deck</span>
+        <span class="ctx-menu__desc">Tab-separated, ready to import as cards</span>
+      </button>
+    </div>
+
+    <div id="workbookMenu" class="ctx-menu" role="menu" hidden>
+      <button type="button" role="menuitem" data-action="rename">Rename</button>
+      <button type="button" role="menuitem" data-action="delete" class="danger">Delete</button>
+    </div>
+
+    <button id="themeToggle" class="theme-toggle" title="Switch between light and dark">
+      <span id="themeToggleIcon"></span>
+    </button>
 
     <script type="module" src="sidepanel.js"></script>
   </body>
