@@ -1299,16 +1299,19 @@ const PANEL_TOUR_STEPS = [
   {
     target: '.tab[data-view="conjugation"]',
     title: "Conjugation",
-    body: para("Any of ~7,000 French verbs, in full, offline."),
+    body: para("Any French verb, in full."),
     placement: "bottom"
   },
   {
     target: '.tab[data-view="practice"]',
     title: "Practice",
-    body: para(
-      "Runs a dialogue out loud and scores how you say it.",
-      "The gear beside it holds every setting."
-    ),
+    body: para("Runs a dialogue out loud and scores how you say it."),
+    placement: "bottom"
+  },
+  {
+    target: ".tab-settings",
+    title: "Settings",
+    body: para("Hover mode, slower speech, reading-aid colours, appearance — every toggle lives here."),
     placement: "bottom"
   },
   {
@@ -1337,11 +1340,16 @@ const PANEL_TOUR_STEPS = [
     placement: "bottom"
   },
   {
+    target: "#vocabSearch",
+    title: "Find a word",
+    body: para("Search filters every workbook at once — type a word or part of one."),
+    placement: "bottom"
+  },
+  {
     target: "#exportBtn",
     title: "Take it with you",
     body: para(
-      "Search across every workbook, or hit <strong>Export</strong> for a CSV " +
-        "spreadsheet or an Anki deck.",
+      "Hit <strong>Export</strong> for a CSV spreadsheet or an Anki deck.",
       "Nothing is locked in here."
     ),
     placement: "bottom"
@@ -1359,6 +1367,11 @@ const PANEL_TOUR_STEPS = [
 // -----------------------------
 
 const TOUR_SPOTLIGHT_KEY = "tourSpotlight";
+// The return leg: written when the spotlight is dismissed, so the welcome tour
+// knows the user is done here and can move to its next step. The user pressed
+// a bubble button, which opened this panel — "Got it" over here is them
+// finishing that step, not starting a detour.
+const TOUR_SPOTLIGHT_DONE_KEY = "tourSpotlightDone";
 const SPOTLIGHT_FRESH_MS = 10000;
 let lastSpotlightAt = 0;
 
@@ -1374,6 +1387,10 @@ async function runRelayedSpotlight(spotlight) {
   // Let the view it points at finish rendering before measuring it.
   await new Promise((r) => setTimeout(r, 250));
   await runTour({
+    // The panel is a live surface — clicking a workbook row, a tab or a card
+    // while a tour is up shouldn't quietly cancel it. Only Got it / Skip /
+    // Esc end these.
+    dismissOnClickAway: false,
     steps: [
       {
         target: spotlight.target,
@@ -1383,6 +1400,11 @@ async function runRelayedSpotlight(spotlight) {
         nextLabel: "Got it"
       }
     ]
+  });
+  // Echoed however it was dismissed — Got it, Skip, Esc or a click away. The
+  // welcome page matches on `at`, so this can't advance anything twice.
+  await chrome.storage.local.set({
+    [TOUR_SPOTLIGHT_DONE_KEY]: { at: spotlight.at, ts: Date.now() }
   });
 }
 
@@ -1410,10 +1432,19 @@ async function checkPanelTourRequest() {
   return true;
 }
 
+// The return leg of the gate handoff, mirroring tourSpotlightDone: the
+// welcome page hands off to this tour and then has no way of knowing it
+// finished, since it's a different document. It waits on this to close the
+// panel and point the user at the optional chapters.
+const PANEL_TOUR_DONE_KEY = "panelTourDone";
+
 async function runPanelTour() {
   switchView("vocab");
-  const { completed } = await runTour({ steps: PANEL_TOUR_STEPS });
+  const { completed } = await runTour({ steps: PANEL_TOUR_STEPS, dismissOnClickAway: false });
   await markTourSeen(TOUR_IDS.panel, { completed });
+  // Written however the tour ended — finished, skipped or Esc. The welcome
+  // page ignores it unless it's actually waiting on one.
+  await chrome.storage.local.set({ [PANEL_TOUR_DONE_KEY]: { at: Date.now() } });
 }
 
 async function maybeRunPanelTour() {
@@ -1431,9 +1462,7 @@ async function maybeRunPanelTour() {
   const state = await getTourState();
   if (state.welcomeOpenedAt && !state.welcomeSeenAt) return;
 
-  switchView("vocab");
-  const { completed } = await runTour({ steps: PANEL_TOUR_STEPS });
-  await markTourSeen(TOUR_IDS.panel, { completed });
+  await runPanelTour();
 }
 
 // Await the first render before the tour measures anything: an unrendered

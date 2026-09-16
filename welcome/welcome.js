@@ -22,6 +22,8 @@ import {
   getTourState,
   isTourActive,
   advanceTour,
+  showHint,
+  dismissHint,
   para
 } from "../lib/tour.js";
 
@@ -92,11 +94,33 @@ const DEMO = [
   ["la", "fla-word"],
   [" "],
   ["porte", "fla-word fla-word--feminine"],
+  [". "],
+  // Two more sentences so the paragraph is four long. That's the passages
+  // chapter's whole point: DEFER_TRANSLATE_SEGMENTS is 4, so selecting the
+  // article has to actually cross the threshold to show the 🌐 Translate
+  // button the chapter is about.
+  ["Dehors", "fla-word"],
+  [", "],
+  ["un", "fla-word"],
+  [" "],
+  ["chien", "fla-word fla-word--masculine"],
+  [" "],
+  ["aboie", "fla-word"],
+  [". "],
+  ["Le", "fla-word"],
+  [" "],
+  ["café", "fla-word fla-word--masculine"],
+  [" "],
+  ["refroidit", "fla-word"],
+  [" "],
+  ["lentement", "fla-word"],
   ["."]
 ];
 
-const CONTEXT_SENTENCE =
-  "Le petit déjeuner est prêt sur la table de la terrasse.";
+// A selection of four lines-or-sentences or more gets a preview and a
+// 🌐 Translate button instead of an immediate translation. Mirrors
+// content/content-script.js's constant of the same name.
+const DEFER_TRANSLATE_SEGMENTS = 4;
 
 
 // Used only when on-device translation is unavailable (an older Chrome, or no
@@ -114,7 +138,13 @@ const FALLBACK_GLOSS = {
   dort: "sleeps",
   porte: "door",
   prêt: "ready",
-  grandes: "large, big"
+  grandes: "large, big",
+  dehors: "outside",
+  chien: "dog",
+  aboie: "barks",
+  café: "coffee",
+  refroidit: "cools down",
+  lentement: "slowly"
 };
 
 const COGNATE_OF = { table: "table", terrasse: "terrace", traverse: "traverse" };
@@ -139,7 +169,14 @@ function buildDemo() {
     // Step 3 spotlights this one specifically, and steps 4-6 all work from
     // the bubble it opens.
     if (text.toLowerCase() === "traverse") span.id = "demoWordTraverse";
-    span.addEventListener("click", () => showBubbleFor(span, { fromUser: true }));
+    // A drag that ends on a word fires this span's click as well as the
+    // document's mouseup. The selection is the more specific intent, so the
+    // word handler stands down — otherwise a dragged phrase would flash a
+    // one-word bubble before the selection bubble replaced it.
+    span.addEventListener("click", () => {
+      if (selectionJustMade) return;
+      showBubbleFor(span, { fromUser: true });
+    });
     span.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
@@ -179,6 +216,12 @@ function removeBubble({ immediate = false } = {}) {
 // Click anywhere that isn't the bubble or another word, and it goes away. A
 // popover you can only close by pressing its own button reads as a trap.
 document.addEventListener("click", (e) => {
+  // The click that ends a drag-selection must not close the bubble that
+  // selection just opened. Cleared here because this listener is on the
+  // document, so it runs after the word spans' own handlers.
+  const wasSelection = selectionJustMade;
+  selectionJustMade = false;
+  if (wasSelection) return;
   if (!currentBubble) return;
   // While a tour is running the bubble belongs to the tour, not to the click:
   // steps 4-6 spotlight its buttons, and any stray click that dismissed it
@@ -222,8 +265,24 @@ function makeBubble(anchor) {
 // A pared-down placeBubble(): the demo article is never near the viewport
 // bottom, so this only needs the below-then-clamp half of the content script's
 // logic, not its beside-a-tall-selection case.
+//
+// `anchor` is the element for a clicked word, or the live Range for a
+// selection — both can be re-measured, which is what makes re-placing on
+// resize possible.
+function rectOf(anchor) {
+  // An Element or a Range is re-measured live; both move when the page
+  // reflows (which is exactly what happens when the side panel opens and
+  // narrows the viewport). A bare DOMRect is a snapshot and can't be.
+  if (anchor instanceof Element || anchor instanceof Range) return anchor.getBoundingClientRect();
+  return anchor;
+}
+
 function placeBubble(bubble, anchor) {
-  const r = anchor.getBoundingClientRect();
+  // Remembered so the bubble can be put back in the right place when the
+  // viewport changes size — see the resize listener below.
+  if (anchor) bubble._anchor = anchor;
+  const r = rectOf(bubble._anchor);
+  if (!r) return;
   const bw = bubble.offsetWidth;
   const bh = bubble.offsetHeight;
   const vw = document.documentElement.clientWidth;
@@ -238,6 +297,22 @@ function placeBubble(bubble, anchor) {
   bubble.style.left = `${window.scrollX + left}px`;
   bubble.style.top = `${window.scrollY + top}px`;
 }
+
+// Opening the side panel narrows this tab's viewport, and the paragraph
+// reflows under a bubble that was positioned in page coordinates against the
+// old, wider one — leaving it sitting half under the panel's edge, with the
+// tour spotlighting a button that's no longer fully on screen. The tour's own
+// callout already re-places itself on resize (lib/tour.js); this is the same
+// treatment for the bubble it points into. Debounced because Chrome resizes
+// the viewport continuously while the panel slides open.
+let bubbleResizeTimer = null;
+window.addEventListener("resize", () => {
+  if (!currentBubble) return;
+  clearTimeout(bubbleResizeTimer);
+  bubbleResizeTimer = setTimeout(() => {
+    if (currentBubble) placeBubble(currentBubble);
+  }, 60);
+});
 
 
 // Set while step 3 is showing, so clicking the word it spotlights carries the
@@ -254,37 +329,239 @@ async function showBubbleFor(span, { fromUser = false } = {}) {
   const bubble = makeBubble(span);
   $("demoHint").textContent = "";
 
-  let translation = null;
-  let sourceLang = "fr";
-  let targetLang = "en";
+  const wordRange = document.createRange();
+  wordRange.selectNode(span);
+  const contextSentence = contextSentenceFor(wordRange);
 
-  try {
-    const resp = await chrome.runtime.sendMessage({
-      type: "TRANSLATE",
-      text: word,
-      contextSentence: CONTEXT_SENTENCE
-    });
-    if (resp?.error) throw new Error(resp.error);
-    translation = resp?.translation ?? null;
-    sourceLang = resp?.sourceLang || "fr";
-    targetLang = resp?.targetLang || "en";
-  } catch (err) {
-    console.warn("[FLA welcome] live translation unavailable, using fallback", err);
-  }
-
+  const { translation, sourceLang, targetLang, note } = await translateText(word, contextSentence);
   if (bubble !== currentBubble) return; // superseded by a later click
 
-  let note = "";
-  if (!translation) {
-    translation = FALLBACK_GLOSS[word.toLowerCase()] || "—";
-    note = "Showing a built-in gloss — on-device translation isn't available here yet.";
-  }
-
-  renderBubble(bubble, span, { word, translation, sourceLang, targetLang });
+  renderBubble(bubble, span, { word, translation, sourceLang, targetLang, contextSentence });
   setStatus(note, false);
 }
 
-function renderBubble(bubble, anchor, { word, translation, sourceLang, targetLang }) {
+// The sentence containing `range`, measured with a probe Range against the
+// demo article's own text — same principle as content-script.js's real
+// getContextSentence() (measure, never hardcode or identity-match a text
+// node), sized down for what this DOM actually needs: one known flat
+// container, no nested blocks to walk up through, and every Range here is
+// freshly built against the article's own live DOM, so the real function's
+// detached-node fallback doesn't apply. A single shared CONTEXT_SENTENCE
+// constant used to feed every word regardless of which sentence it was
+// actually in — harmless for words in the first sentence, silently wrong for
+// "traverse", which lives in the second.
+function contextSentenceFor(range) {
+  const article = $("demoArticle");
+  const text = article.textContent || "";
+  const offsetOf = (node, nodeOffset) => {
+    const probe = document.createRange();
+    probe.selectNodeContents(article);
+    probe.setEnd(node, nodeOffset);
+    return probe.toString().length;
+  };
+  const start = offsetOf(range.startContainer, range.startOffset);
+  const end = offsetOf(range.endContainer, range.endOffset);
+
+  const BOUNDARY = /[.!?]/;
+  let sentStart = 0;
+  for (let i = start - 1; i >= 0; i--) {
+    if (BOUNDARY.test(text[i])) {
+      sentStart = i + 1;
+      break;
+    }
+  }
+  let sentEnd = text.length;
+  for (let i = end; i < text.length; i++) {
+    if (BOUNDARY.test(text[i])) {
+      sentEnd = i + 1;
+      break;
+    }
+  }
+  return text.slice(sentStart, sentEnd).trim();
+}
+
+/** One real TRANSLATE round-trip, falling back to a bundled gloss so the
+ *  tutorial teaches the interaction rather than dead-ending on an error. Shared
+ *  by the click path and the selection path. */
+async function translateText(text, contextSentence) {
+  try {
+    const resp = await chrome.runtime.sendMessage({
+      type: "TRANSLATE",
+      text,
+      contextSentence
+    });
+    if (resp?.error) throw new Error(resp.error);
+    if (resp?.translation) {
+      return {
+        translation: resp.translation,
+        sourceLang: resp.sourceLang || "fr",
+        targetLang: resp.targetLang || "en",
+        note: ""
+      };
+    }
+  } catch (err) {
+    console.warn("[FLA welcome] live translation unavailable, using fallback", err);
+  }
+  return {
+    translation: FALLBACK_GLOSS[text.trim().toLowerCase()] || "—",
+    sourceLang: "fr",
+    targetLang: "en",
+    note: "Showing a built-in gloss — on-device translation isn't available here yet."
+  };
+}
+
+// -----------------------------
+// Selections
+//
+// The other half of the in-page interaction: drag across more than one word and
+// the whole selection is translated. Reproduced here for the same reason the
+// click path is — a content script can't run on a chrome-extension:// page, so
+// the passages chapter has to be able to demonstrate the real behaviour,
+// including the deferred 🌐 Translate button, on this paragraph.
+// -----------------------------
+
+// Set for the duration of the click that ends a drag, so the word under the
+// cursor and the document's dismiss-on-click handler both stand down.
+let selectionJustMade = false;
+// Set while the passages chapter's first step is showing, so a real selection
+// carries the tour forward.
+let awaitingPassageSelection = false;
+
+// Mirrors content/content-script.js's segmentCount(): newlines first, sentences
+// as the fallback, so the count matches the number of turns Practice would make.
+function segmentCount(text) {
+  const lines = String(text || "").split(/\n+/).map((s) => s.trim()).filter(Boolean);
+  if (lines.length > 1) return lines.length;
+  return String(text || "")
+    .split(/(?<=[.!?…])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean).length;
+}
+
+/** The current selection, if it's a multi-word one inside the demo paragraph.
+ *  A single word is the click path's job, not this one. */
+function demoSelection() {
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null;
+  const text = sel.toString().trim();
+  if (!text || !/\s/.test(text)) return null;
+  const range = sel.getRangeAt(0);
+  if (!$("demoArticle").contains(range.commonAncestorContainer)) return null;
+  const rect = range.getBoundingClientRect();
+  if (!rect.width && !rect.height) return null;
+  return { text, rect, range };
+}
+
+function clearSelection() {
+  window.getSelection()?.removeAllRanges();
+}
+
+// Only a drag that STARTED in the paragraph counts. Without this, any mouseup
+// anywhere re-reads whatever is still selected — so pressing the deferred
+// bubble's own 🌐 Translate button (with the paragraph still highlighted behind
+// it) would rebuild the bubble out from under the button before its click could
+// land, and the button would look dead.
+let dragStartedInDemo = false;
+
+document.addEventListener("mousedown", (e) => {
+  dragStartedInDemo = $("demoArticle").contains(e.target);
+});
+
+document.addEventListener("mouseup", () => {
+  if (!dragStartedInDemo) return;
+  dragStartedInDemo = false;
+  const sel = demoSelection();
+  if (!sel) return;
+  selectionJustMade = true;
+  showSelectionBubble(sel, { fromUser: true });
+});
+
+async function showSelectionBubble(sel, { fromUser = false } = {}) {
+  if (fromUser && awaitingPassageSelection) {
+    awaitingPassageSelection = false;
+    // Let the bubble render before the next step measures a button inside it.
+    setTimeout(() => advanceTour(), 350);
+  }
+
+  const bubble = makeBubble(sel.range);
+  $("demoHint").textContent = "";
+  const contextSentence = contextSentenceFor(sel.range);
+
+  if (segmentCount(sel.text) >= DEFER_TRANSLATE_SEGMENTS) {
+    renderDeferredBubble(bubble, sel, contextSentence);
+    return;
+  }
+
+  const { translation, sourceLang, targetLang, note } = await translateText(sel.text, contextSentence);
+  if (bubble !== currentBubble) return; // superseded
+  renderBubble(bubble, sel.range, {
+    word: sel.text,
+    translation,
+    sourceLang,
+    targetLang,
+    contextSentence,
+    practiceText: segmentCount(sel.text) > 1 ? sel.text : null
+  });
+  setStatus(note, false);
+}
+
+// The passage-length case, exactly as content/content-script.js renders it:
+// show what was selected and what can be done with it, but don't spend a
+// translation until asked. The Translate button exists ONLY here.
+function renderDeferredBubble(bubble, sel, contextSentence) {
+  const segments = segmentCount(sel.text);
+  bubble.innerHTML = `
+    <div class="fla-row">
+      <span class="fla-lang">${segments} lines</span>
+      <span class="fla-text fla-preview">${escapeHtml(sel.text)}</span>
+    </div>
+    <div class="fla-actions">
+      <button class="fla-btn fla-translate" data-action="translate">🌐 Translate</button>
+      <button class="fla-btn fla-practice" data-action="practice" title="Practice this dialogue aloud">🎙 Practice</button>
+    </div>
+  `;
+  bubble.querySelector('[data-action="translate"]').onclick = async () => {
+    bubble.innerHTML = `<div class="fla-loading">Translating…</div>`;
+    placeBubble(bubble, sel.range);
+    const { translation, sourceLang, targetLang, note } = await translateText(sel.text, contextSentence);
+    if (bubble !== currentBubble) return;
+    renderBubble(bubble, sel.range, {
+      word: sel.text,
+      translation,
+      sourceLang,
+      targetLang,
+      contextSentence,
+      practiceText: sel.text
+    });
+    setStatus(note, false);
+  };
+  bubble.querySelector('[data-action="practice"]').onclick = () => openPractice(sel.text);
+  placeBubble(bubble, sel.range);
+}
+
+/** The deferred bubble, rebuilt only if it isn't already up. The passages
+ *  chapter's last three steps all need it, and re-selecting the paragraph on
+ *  every one of them would tear down and recreate the bubble underneath the
+ *  spotlight that just measured it. */
+async function ensureDeferredBubble() {
+  if (currentBubble?.querySelector(".fla-translate")) return;
+  await selectWholeDemo();
+}
+
+/** Select the whole demo paragraph and open its bubble. The passages chapter
+ *  uses this to put the deferred state on screen without asking the user to
+ *  drag exactly far enough to trigger it. */
+async function selectWholeDemo() {
+  const article = $("demoArticle");
+  const range = document.createRange();
+  range.selectNodeContents(article);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+  await showSelectionBubble({ text: article.textContent.trim(), rect: range.getBoundingClientRect(), range });
+}
+
+function renderBubble(bubble, anchor, { word, translation, sourceLang, targetLang, contextSentence, practiceText = null }) {
   bubble.innerHTML = `
     <div class="fla-row">
       <span class="fla-lang">${sourceLang}</span>
@@ -300,6 +577,7 @@ function renderBubble(bubble, anchor, { word, translation, sourceLang, targetLan
       <button class="fla-btn fla-save" data-action="save">＋ Save</button>
       <button class="fla-btn fla-conj" data-action="conjugate">Conjugate</button>
       <button class="fla-btn fla-workbook" data-action="workbook" title="Open workbook">📖 Workbook</button>
+      ${practiceText ? `<button class="fla-btn fla-practice" data-action="practice" title="Practice this dialogue aloud">🎙 Practice</button>` : ""}
     </div>
   `;
 
@@ -322,9 +600,25 @@ function renderBubble(bubble, anchor, { word, translation, sourceLang, targetLan
     openWorkbook();
   };
 
-  bubble.querySelector('[data-action="save"]').onclick = () => saveDemoWord(bubble, word, translation, sourceLang, targetLang);
+  bubble.querySelector('[data-action="save"]').onclick = () =>
+    saveDemoWord(bubble, word, translation, sourceLang, targetLang, contextSentence);
+
+  const practiceBtn = bubble.querySelector('[data-action="practice"]');
+  if (practiceBtn) practiceBtn.onclick = () => openPractice(practiceText);
 
   placeBubble(bubble, anchor);
+}
+
+// Same route the in-page bubble takes: the intent rides on OPEN_SIDEPANEL and
+// the panel picks it up. Spotlighted first, for the same reason every other
+// real action here is — the result lands in a document this page can't dim.
+async function openPractice(text) {
+  await spotlightInPanel({
+    target: "#practice",
+    title: "Say it out loud",
+    body: "The panel reads one side of the dialogue and scores how you say the other."
+  });
+  await chrome.runtime.sendMessage({ type: "OPEN_SIDEPANEL", view: "practice", text });
 }
 
 /** Guarantee a bubble exists so a tour step can point at one of its buttons.
@@ -482,15 +776,34 @@ async function syncAidClassesFromConfig() {
 // -----------------------------
 
 const TOUR_SPOTLIGHT_KEY = "tourSpotlight";
+// Written back by the panel when its relayed spotlight is dismissed — the
+// return leg of the same relay. Pressing a bubble button during the tour opens
+// the panel, so "Got it" over there is the user finishing this step; without
+// this they'd come back to a tour still sitting on the button they already
+// pressed, with no way forward but Next.
+const TOUR_SPOTLIGHT_DONE_KEY = "tourSpotlightDone";
 // Set while the welcome tour is mid-flight; the side panel reads it to know
 // not to launch its own tour on top.
 const TOUR_RUNNING_KEY = "welcomeTourRunning";
 
+// The `at` of the spotlight we're waiting to hear back about. Matching on it
+// means a stale acknowledgement (a panel opened long after the fact) can't
+// advance the tour a second time.
+let pendingSpotlightAt = 0;
+
 async function spotlightInPanel(spotlight) {
-  await chrome.storage.local.set({
-    [TOUR_SPOTLIGHT_KEY]: { ...spotlight, at: Date.now() }
-  });
+  const at = Date.now();
+  pendingSpotlightAt = at;
+  await chrome.storage.local.set({ [TOUR_SPOTLIGHT_KEY]: { ...spotlight, at } });
 }
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local") return;
+  const done = changes[TOUR_SPOTLIGHT_DONE_KEY]?.newValue;
+  if (!done || !pendingSpotlightAt || done.at !== pendingSpotlightAt) return;
+  pendingSpotlightAt = 0;
+  if (isTourActive()) advanceTour();
+});
 
 // The word this tutorial saves, and where it puts it. A dedicated bucket, so
 // the cleanup at the end of the tour can remove exactly what the tutorial
@@ -498,7 +811,7 @@ async function spotlightInPanel(spotlight) {
 const TUTORIAL_URL = "collection:tutorial";
 let tutorialSave = null; // { url, id } of the entry this run created
 
-async function saveDemoWord(bubble, word, translation, sourceLang, targetLang) {
+async function saveDemoWord(bubble, word, translation, sourceLang, targetLang, contextSentence) {
   try {
     const resp = await chrome.runtime.sendMessage({
       type: "SAVE_WORD",
@@ -507,7 +820,7 @@ async function saveDemoWord(bubble, word, translation, sourceLang, targetLang) {
         translation,
         sourceLang,
         targetLang,
-        contextSentence: CONTEXT_SENTENCE,
+        contextSentence,
         url: TUTORIAL_URL
       }
     });
@@ -664,7 +977,7 @@ const CORE_STEPS = [
     body: para(
       "On any French page, <strong>click a word</strong> and its translation appears " +
         "right there. No selecting, no menus.",
-      "We'll use <em>traverse</em> for the rest of the tour."
+      "We'll use “traverse” for the rest of the tour."
     ),
     placement: "bottom",
     padding: 3,
@@ -682,13 +995,16 @@ const CORE_STEPS = [
   // re-run the translation and rebuild the buttons underneath the spotlight,
   // and stepping Back would land on a target that no longer existed.
   {
-    target: ".fla-bubble .fla-conj",
-    title: "Conjugate",
+    // Workbook comes before Conjugate: the workbook is where both of the other
+    // two buttons put their results, so meeting it first means the conjugation
+    // table and the saved word land somewhere the user has already seen.
+    target: ".fla-bubble .fla-workbook",
+    title: "Workbook",
     body: para(
-      "When the word is a verb, this looks up its full conjugation.",
-      "About 7,000 French verbs are bundled with the extension, so the table opens " +
-        "instantly and works with no network at all.",
-      "In normal use it opens in your workbook's Conjugation tab."
+      "Opens your workbook — the side panel where everything you've saved lives, " +
+        "grouped into one workbook per page and per PDF.",
+      "It's also where conjugation lookup and speaking practice live.",
+      "Press it, then <strong>Got it</strong> in the panel to carry on."
     ),
     placement: "bottom",
     padding: 4,
@@ -699,12 +1015,11 @@ const CORE_STEPS = [
     }
   },
   {
-    target: ".fla-bubble .fla-workbook",
-    title: "Workbook",
+    target: ".fla-bubble .fla-conj",
+    title: "Conjugate",
     body: para(
-      "Opens your workbook — the side panel where everything you've saved lives, " +
-        "grouped into one workbook per page and per PDF.",
-      "It's also where conjugation lookup and speaking practice live."
+      "Opens your workbook's Conjugation tab, with “traverse” already looked up.",
+      "Only appears for a real verb — that's what this button is checking."
     ),
     placement: "bottom",
     padding: 4,
@@ -723,8 +1038,31 @@ const CORE_STEPS = [
     placement: "bottom",
     padding: 4,
     interactive: true,
-    before: () => ensureDemoBubble("traverse"),
-    nextLabel: "Finish"
+    before: () => ensureDemoBubble("traverse")
+    // No nextLabel override — this is no longer the last step, so the
+    // default "Next" is correct; the gate step below is where the tour ends.
+  },
+  {
+    // Centred, not pointing at anything: this is a decision, not a pointer.
+    // It's the seam between the page tour and the workbook tour — accepting
+    // it hands off to PANEL_TOUR_STEPS (see runCoreTour); declining ends the
+    // tour exactly as Skip/Esc/click-away always have. Being the LAST step is
+    // what makes that work with no extra plumbing: runTour() resolves
+    // completed:true only when Next is pressed here, completed:false for
+    // everything else (Not now, Esc, click-away, or bailing out earlier) —
+    // one boolean already distinguishes "accepted the gate" from "declined or
+    // never got this far", so runCoreTour() branches on it directly.
+    target: null,
+    title: "One half done",
+    body: para(
+      "That's the page. Your workbook is the other half — where saved words, " +
+        "conjugation and practice live."
+    ),
+    nextLabel: "Show me the workbook",
+    // Ordinarily Skip is hidden on the final step (a last step only ever
+    // needs "Done") — this step has two real outcomes, so it needs both.
+    showSkip: true,
+    skipLabel: "Not now"
   }
 ];
 
@@ -758,17 +1096,71 @@ const CHAPTERS = {
 
   passages: [
     {
+      // hideNext + interactive: the step asks for a drag, so it has to wait for
+      // one. Offering Next here would invite clicking past the very thing it's
+      // asking the user to try.
       target: "#demoArticle",
       title: "Select a whole passage",
       body: para(
-        "Drag across a phrase or a paragraph and you get the whole thing translated, " +
-          "not just one word.",
-        "Long selections are the exception: at four lines or more the bubble shows a " +
-          "preview and a <strong>🌐 Translate</strong> button instead of translating " +
-          "straight away — usually you selected that much to practise it, not to read " +
-          "a wall of English."
+        "<strong>Drag across a few words</strong> in the paragraph — a phrase, or one " +
+          "sentence.",
+        "The whole selection is translated, not just the word you started on."
       ),
-      placement: "bottom"
+      placement: "bottom",
+      interactive: true,
+      hideNext: true,
+      before: () => {
+        awaitingPassageSelection = true;
+        removeBubble({ immediate: true });
+        clearSelection();
+      }
+    },
+    {
+      // The whole bubble, so the preview and both buttons are in the cutout
+      // together — this step is about the deferred state as a whole, and the
+      // two that follow take each button in turn.
+      target: ".fla-bubble",
+      title: "Long selections wait",
+      body: para(
+        "Now the whole paragraph is selected. At four lines or sentences the bubble " +
+          "shows a <strong>preview</strong> instead of translating straight away.",
+        "Selecting that much usually means you want to practise it, not read a wall " +
+          "of English."
+      ),
+      placement: "bottom",
+      before: () => {
+        awaitingPassageSelection = false;
+        return ensureDeferredBubble();
+      }
+    },
+    {
+      // Deliberately NOT interactive, here and on the next step. Pressing 🌐
+      // swaps the bubble's contents, which detaches this very button — and a
+      // cutout measuring a detached element reads all zeros and jumps to the
+      // top-left corner. The blocker keeps the button unpressable so the
+      // target stays put; the drag in step 1 is this chapter's hands-on part.
+      target: ".fla-bubble .fla-translate",
+      title: "Translate it anyway",
+      body: para(
+        "<strong>🌐 Translate</strong> is the way to say yes, translate all of it.",
+        "It only exists in this deferred state — once a passage is translated the " +
+          "bubble is an ordinary one, with no leftover button."
+      ),
+      placement: "bottom",
+      padding: 4,
+      before: () => ensureDeferredBubble()
+    },
+    {
+      target: ".fla-bubble .fla-practice",
+      title: "Or practise it aloud",
+      body: para(
+        "<strong>🎙 Practice</strong> takes the same passage into your workbook and " +
+          "runs it as a spoken conversation — it reads one side, you say the other.",
+        "That's usually why you selected a whole passage in the first place."
+      ),
+      placement: "bottom",
+      padding: 4,
+      before: () => ensureDeferredBubble()
     }
   ],
 
@@ -777,9 +1169,8 @@ const CHAPTERS = {
       target: ".fla-bubble .fla-conj",
       title: "Conjugation, offline",
       body: para(
-        "<em>traverse</em> is a verb, so the bubble offers <strong>Conjugate</strong>.",
-        "Press it: your workbook opens on the full table, read from the ~7,000 verbs " +
-          "bundled with the extension. No network involved.",
+        "“traverse” is a verb, so the bubble offers <strong>Conjugate</strong>.",
+        "Press it and your workbook opens on the full table.",
         "You can also type any infinitive straight into the Conjugation tab."
       ),
       placement: "bottom",
@@ -791,22 +1182,24 @@ const CHAPTERS = {
 
   pdf: [
     {
-      target: null,
+      target: "#toolbarMockIcon",
       title: "Reading PDFs",
       body: para(
-        "Open the popup and choose <strong>📄 Open a PDF</strong> to read one with the " +
-          "same click-to-translate and save tools.",
-        "You open PDFs by hand on purpose: automatically intercepting every PDF you " +
-          "click would mean asking for far broader permissions than this extension wants.",
-        "A PDF's words are filed by the document's content, so the same file keeps one " +
-          "workbook no matter where you opened it from."
-      )
+        "Click the L'auxiliaire icon, then <strong>📄 Open a PDF</strong>.",
+        "Everything works the same inside it — click a word, drag a passage, save."
+      ),
+      placement: "bottom",
+      padding: 4
     }
   ],
 
   practice: [
     {
-      target: null,
+      // Anchored on the card that launched it rather than centred: there's
+      // nothing on this page to point at (the mic lives in the side panel),
+      // but the card is where the user's eye already is.
+      target: '.chapter[data-chapter="practice"]',
+      placement: "top",
       title: "Say it out loud",
       body: para(
         "Select a dialogue, choose <strong>🎙 Practice</strong>, and the side panel runs " +
@@ -821,7 +1214,8 @@ const CHAPTERS = {
 
   shortcuts: [
     {
-      target: null,
+      target: '.chapter[data-chapter="shortcuts"]',
+      placement: "top",
       title: "Three shortcuts",
       body: para(
         "<kbd>Alt</kbd>+<kbd>T</kbd> — turn hover-to-translate on or off.",
@@ -834,36 +1228,132 @@ const CHAPTERS = {
   ]
 };
 
+// A pulsing ring around #workbookTour, alongside the hint — a scrim's job is
+// "look here", and this does that without owning the screen the way a scrim
+// would (see the gate step's comment for why a scrim was ruled out here).
+// Independent of showHint()'s own lifecycle (that module has no
+// onDismiss hook, and adding one for a single caller isn't worth it), so its
+// timeout mirrors the hint's duration and every dismissHint() call site below
+// clears it too, for the early-exit paths (a chapter started, the tour
+// replayed, the button actually pressed).
+let pulseTimer = null;
+let pulseTarget = null;
+
+function pulse(selector, duration) {
+  stopPulse();
+  pulseTarget = document.querySelector(selector);
+  if (!pulseTarget) return;
+  pulseTarget.classList.add("pulse-ring");
+  pulseTimer = setTimeout(stopPulse, duration);
+}
+
+function stopPulse() {
+  clearTimeout(pulseTimer);
+  pulseTimer = null;
+  pulseTarget?.classList.remove("pulse-ring");
+  pulseTarget = null;
+}
+
+// Every dismissHint() call site needs this alongside it, so the ring never
+// outlives the hint it's paired with.
+function dismissHintAndPulse() {
+  dismissHint();
+  stopPulse();
+}
+
 async function runCoreTour() {
   // The panel checks this before starting its own tour: two tutorials running
   // in two documents at once is nobody's idea of onboarding. Cleared by
   // endTour(), which runs on every exit path.
   await chrome.storage.local.set({ [TOUR_RUNNING_KEY]: Date.now() });
   const { completed } = await runTour({ steps: CORE_STEPS });
-  await closeWorkbook();
-  await endTour();
   await markTourSeen(TOUR_IDS.welcome, { completed });
   revealChapters();
   $("startTour").hidden = false;
-  // The workbook is the half of the product the page can't show, so point at
-  // it rather than leaving the user on a finished tour with nowhere to go.
-  $("afterTourPrompt").hidden = false;
   $("workbookTour").focus();
+
+  if (completed) {
+    // The gate step's own Next ("Show me the workbook") is the only way this
+    // tour resolves completed:true — Skip/Esc/click-away/bailing out earlier
+    // all resolve false. So this branch means exactly one thing: the user
+    // asked, right here, to continue into the workbook tour.
+    //
+    // Fire the request without awaiting it: chrome.sidePanel.open() (inside
+    // openWorkbook(), below) needs the click's transient user activation, and
+    // awaiting the storage write first crosses a real async boundary that
+    // risks losing it. panelTourRequest already has two delivery paths in
+    // sidepanel.js (checked at load, and via storage.onChanged), so a request
+    // written a beat before the panel finishes opening still lands.
+    awaitingPanelTour = true;
+    chrome.storage.local.set({ panelTourRequest: Date.now() });
+    await endTour();
+    openWorkbook();
+    return; // finishTutorial() runs when the panel reports back — see below
+  }
+
+  await endTour();
+  await finishTutorial();
 }
+
+// Set while the workbook tour is running in the panel, so a stale
+// panelTourDone (one written by a tour the user started themselves, long
+// after this page finished) can't trigger the ending twice.
+let awaitingPanelTour = false;
+
+// How the tutorial ends, by either route: shut the workbook and hand the user
+// to the optional chapters. Closing matters — the panel is a tall pane over
+// half the screen, and leaving it open after the tutorial means the thing the
+// user is being pointed at is behind it.
+async function finishTutorial() {
+  await closeWorkbook();
+  revealChapters();
+  pulse("#chapters", 14000);
+  showHint({
+    target: "#chapters",
+    title: "That's the tour",
+    body: para(
+      "Everything else is optional — each of these takes about twenty seconds."
+    ),
+    placement: "top",
+    duration: 14000
+  });
+}
+
+// The workbook tour finished in the other document. Same shape as the
+// tourSpotlightDone relay: only act when this page is actually waiting on it.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local") return;
+  if (!changes.panelTourDone?.newValue || !awaitingPanelTour) return;
+  awaitingPanelTour = false;
+  finishTutorial();
+});
 
 // Run whenever a tour stops, however it stopped — finished, skipped, or Esc.
 // Takes the demo bubble down with it and removes anything the tutorial wrote,
 // so nothing it did outlives it.
 async function endTour() {
   removeBubble();
-  await chrome.storage.local.remove([TOUR_SPOTLIGHT_KEY, TOUR_RUNNING_KEY]);
+  clearSelection();
+  pendingSpotlightAt = 0;
+  await chrome.storage.local.remove([
+    TOUR_SPOTLIGHT_KEY,
+    TOUR_SPOTLIGHT_DONE_KEY,
+    TOUR_RUNNING_KEY
+  ]);
   await cleanUpTutorialSaves();
 }
 
 async function runChapter(name) {
   const steps = CHAPTERS[name];
   if (!steps) return;
-  await runTour({ steps });
+  dismissHintAndPulse();
+  // Chapters spotlight controls they deliberately don't let you press — the
+  // passages chapter points at 🌐 Translate and 🎙 Practice to explain them,
+  // and pressing either mid-chapter would either swap the bubble out from
+  // under the cutout or navigate to the side panel entirely. With the default
+  // click-away, reaching for that highlighted button would close the chapter
+  // instead, which reads as the tutorial breaking. Skip and Esc still exit.
+  await runTour({ steps, dismissOnClickAway: false });
   await endTour();
   await markChapterSeen(name);
   await markChaptersSeenInUi();
@@ -897,10 +1387,14 @@ $("openWorkbook").addEventListener("click", openWorkbook);
 // Opens the panel AND asks it to run its own tour. Requested explicitly, so
 // the panel runs it even if it has been seen before.
 $("workbookTour").addEventListener("click", async () => {
+  dismissHintAndPulse();
   await chrome.storage.local.set({ panelTourRequest: Date.now() });
   await openWorkbook();
 });
-$("startTour").addEventListener("click", runCoreTour);
+$("startTour").addEventListener("click", () => {
+  dismissHintAndPulse();
+  runCoreTour();
+});
 
 async function init() {
   // The bubble is styled by content/popup.css, which keys its dark palette off

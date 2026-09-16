@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>L'auxiliaire — FAQ</title>
+    <link rel="stylesheet" href="../lib/theme.css" />
+    <link rel="stylesheet" href="pages.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="page__head">
+        <p class="page__eyebrow">L'auxiliaire</p>
+        <h1>Questions, answered</h1>
+        <p class="page__lede">What it does, what it doesn't, and where things live.</p>
+      </header>
+
+      <h2>Getting started</h2>
+      <section class="faq">
+        <details open>
+          <summary>What is L'auxiliaire?</summary>
+          <div class="faq__answer">
+            <p>
+              A Chrome extension for reading real French — news, essays, PDFs — without
+              leaving the page to look things up. Click a word for its translation, drag
+              across a passage to translate the lot, save what's worth keeping, look up a
+              verb's full conjugation, and practise a dialogue out loud.
+            </p>
+          </div>
+        </details>
+
+        <details>
+          <summary>Do I need an account, an API key, or an internet connection?</summary>
+          <div class="faq__answer">
+            <p>
+              No account and no API key. Translation runs on your own machine through
+              Chrome's built-in AI, so once the language pack is downloaded it works
+              offline. Conjugation and the word lexicon are bundled data files — they were
+              never online to begin with.
+            </p>
+            <p>
+              The one exception is speaking practice: Chrome's speech recognition sends
+              audio to Google's servers to transcribe it. See
+              <a href="privacy.html">the privacy page</a> for the detail.
+            </p>
+          </div>
+        </details>
+
+        <details>
+          <summary>Which version of Chrome do I need?</summary>
+          <div class="faq__answer">
+            <p>
+              Chrome 138 or newer. The on-device <code>Translator</code> API the extension
+              is built on doesn't exist before that.
+            </p>
+          </div>
+        </details>
+
+        <details>
+          <summary>Does it work in Firefox or Safari?</summary>
+          <div class="faq__answer">
+            <p>
+              Not today. Both the on-device translation API and the speech recognition the
+              Practice tab uses are Chrome-only.
+            </p>
+          </div>
+        </details>
+
+        <details>
+          <summary>Why is the very first translation slow?</summary>
+          <div class="faq__answer">
+            <p>
+              Chrome downloads the French → English language pack the first time you ask
+              for a translation. It happens once and can take a minute; everything after
+              it is instant and offline. The extension says so on screen while it's
+              happening, rather than just appearing to hang.
+            </p>
+          </div>
+        </details>
+
+        <details>
+          <summary>I can't find the extension icon.</summary>
+          <div class="faq__answer">
+            <p>
+              Chrome hides new extensions behind the 🧩 puzzle icon in the toolbar. Open
+              that menu and pin L'auxiliaire so it stays visible.
+            </p>
+          </div>
+        </details>
+      </section>
+
+      <h2>Reading</h2>
+      <section class="faq">
+        <details>
+          <summary>How do I translate a word, or a whole passage?</summary>
+          <div class="faq__answer">
+            <p>
+              Click any word. Drag across more than one and the whole selection is
+              translated instead. Hover-to-translate is an optional extra on top of
+              clicking — switch it on in Settings or with <kbd>Alt</kbd>+<kbd>T</kbd>.
+            </p>
+          </div>
+        </details>
+
+        <details>
+          <summary>I selected a long passage and it didn't translate.</summary>
+          <div class="faq__answer">
+            <p>
+              That's deliberate. At four lines or sentences the bubble shows a preview and
+              a <strong>🌐 Translate</strong> button instead of translating straight away
+              — selecting that much usually means you want to practise it, not read a wall
+              of English. Press 🌐 and it translates.
+            </p>
+          </div>
+        </details>
+
+        <details>
+          <summary>What are the coloured words?</summary>
+          <div class="faq__answer">
+            <p>
+              Reading aids: every noun tinted by grammatical gender — masculine, feminine
+              or plural. French gender is the thing hardest to absorb from a dictionary
+              and easiest to absorb from seeing it, over and over, in real sentences.
+            </p>
+            <p>
+              It's off by default. Turn it on under <strong>Settings → gender / plural
+              colour coding</strong>, in the popup or the side panel; the colours are
+              yours to pick, and each category has its own switch. Changes apply live to
+              every open tab.
+            </p>
+          </div>
+        </details>
+
+        <details>
+          <summary>What does the reading level mean?</summary>
+          <div class="faq__answer">
+            <p>
+              A rough CEFR estimate (A1–C2) for the page you're on, worked out from how
+              common its words are. It's a first-glance signal, not a measurement — it
+              knows nothing about what you personally already know.
+            </p>
+          </div>
+        </details>
+
+        <details>
+          <summary>Can I read PDFs?</summary>
+          <div class="faq__answer">
+            <p>
+              Yes — open the extension popup and choose <strong>📄 Open a PDF</strong>,
+              either from a file on your computer or by reopening a PDF already in the
+              current tab. Click-to-translate, saving and conjugation all work inside it,
+              and the viewer has its own highlighter.
+            </p>
+            <p>
+              You open PDFs by hand on purpose: intercepting every PDF you click would
+              mean asking for far broader browsing permissions than this extension wants.
+            </p>
+          </div>
+        </details>
+
+        <details>
+          <summary>Reopening a PDF from a website failed.</summary>
+          <div class="faq__answer">
+            <p>
+              The "reopen this PDF" button fetches the file directly, which only some
+              hosts allow. Publisher, university and Drive-hosted PDFs commonly refuse it.
+              Save the file and use the file picker instead — that always works.
+            </p>
+          </div>
+        </details>
+      </section>
+
+      <h2>Your words</h2>
+      <section class="faq">
+        <details>
+          <summary>Where do saved words go?</summary>
+          <div class="faq__answer">
+            <p>
+              Into your workbook — the side panel, opened from the 📖 button on the
+              translation bubble or from the popup. Words file themselves by where you
+              found them: one workbook per page and per PDF, plus
+              <strong>All Words</strong> across everything.
+            </p>
+            <p>
+              Every word is saved with the sentence you met it in. That context is the
+              thing that makes it stick, so it comes along every time.
+            </p>
+          </div>
+        </details>
+
+        <details>
+          <summary>Why did "parle" get saved as "parler"?</summary>
+          <div class="faq__answer">
+            <p>
+              Conjugated forms are collapsed onto their infinitive, so "parle", "parlé"
+              and "parlez" are one word to revise rather than three. The entry keeps the
+              form you actually read; the card behind it is the infinitive.
+            </p>
+          </div>
+        </details>
+
+        <details>
+          <summary>Can I make my own lists, or type words in by hand?</summary>
+          <div class="faq__answer">
+            <p>
+              Both. <strong>＋ Collection</strong> in the workbook rail makes an empty list
+              you name yourself, and <strong>＋ Add a word</strong> lets you type a word
+              and its translation straight in — including an English word, to learn its
+              French. Right-click any workbook to rename or delete it, or drag it to
+              reorder.
+            </p>
+          </div>
+        </details>
+
+        <details>
+          <summary>Can I get my words out?</summary>
+          <div class="faq__answer">
+            <p>
+              Yes — <strong>Export</strong> in the workbook gives you a CSV spreadsheet or
+              an Anki deck, context sentences included. Nothing is locked in.
+            </p>
+          </div>
+        </details>
+
+        <details>
+          <summary>Is there spaced repetition?</summary>
+          <div class="faq__answer">
+            <p>
+              Not yet. Saved words already carry the scheduling data a Leitner system
+              needs, but there's no review screen to drive it. It's the next thing on the
+              roadmap.
+            </p>
+          </div>
+        </details>
+      </section>
+
+      <h2>Speaking practice</h2>
+      <section class="faq">
+        <details>
+          <summary>How does practice work?</summary>
+          <div class="faq__answer">
+            <p>
+              Select a dialogue and choose <strong>🎙 Practice</strong>, or paste one into
+              the Practice tab. The panel reads one side aloud and you speak the other; if
+              the dialogue is in English, you translate every line into spoken French.
+            </p>
+          </div>
+        </details>
+
+        <details>
+          <summary>Why does it need my microphone?</summary>
+          <div class="faq__answer">
+            <p>
+              To hear you say the line. Chrome asks once, on a dedicated permission page,
+              and nothing listens outside a practice turn you started.
+            </p>
+          </div>
+        </details>
+
+        <details>
+          <summary>It says it can't hear me.</summary>
+          <div class="faq__answer">
+            <p>
+              Almost always the wrong input device. The level meter beside the mic moves
+              when audio is arriving — if it stays flat, change the input in your system
+              sound settings and try again.
+            </p>
+          </div>
+        </details>
+
+        <details>
+          <summary>I said it right and it still marked me down.</summary>
+          <div class="faq__answer">
+            <p>
+              Scoring is on pronunciation, not spelling, and it's deliberately lenient —
+              "parler", "parlé" and "parlez" all score the same, and a differently-phrased
+              but correct translation passes. If a whole line comes back as gibberish,
+              suspect the microphone before yourself.
+            </p>
+          </div>
+        </details>
+      </section>
+
+      <h2>Settings and troubleshooting</h2>
+      <section class="faq">
+        <details>
+          <summary>What are the keyboard shortcuts?</summary>
+          <div class="faq__answer">
+            <ul>
+              <li><kbd>Alt</kbd>+<kbd>T</kbd> — turn hover-to-translate on or off</li>
+              <li><kbd>Alt</kbd>+<kbd>R</kbd> — read the selection aloud</li>
+              <li><kbd>Alt</kbd>+<kbd>S</kbd> — translate and save the selection</li>
+            </ul>
+            <p>Change them from the popup's "Change these keys".</p>
+          </div>
+        </details>
+
+        <details>
+          <summary>Can I force light or dark mode?</summary>
+          <div class="faq__answer">
+            <p>
+              Yes — <strong>Settings → Appearance</strong> offers Match system, Light or
+              Dark, and the sun/moon button in the workbook rail flips between the two.
+              The choice applies to every surface at once.
+            </p>
+          </div>
+        </details>
+
+        <details>
+          <summary>How do I see the tutorial again?</summary>
+          <div class="faq__answer">
+            <p>
+              <strong>Settings → Tutorial → Replay</strong>, in the popup or the side
+              panel. It reopens the welcome page and starts from the beginning, optional
+              chapters included.
+            </p>
+          </div>
+        </details>
+
+        <details>
+          <summary>Nothing happens when I click a word.</summary>
+          <div class="faq__answer">
+            <p>
+              Reload the page — the extension doesn't run on tabs that were already open
+              when it was installed or updated. Some pages (the Chrome Web Store,
+              <code>chrome://</code> pages, and other extensions' pages) don't allow
+              extensions to run at all, and nothing can be done about those.
+            </p>
+          </div>
+        </details>
+
+        <details>
+          <summary>Something's broken, or I want a feature.</summary>
+          <div class="faq__answer">
+            <p>
+              Open an issue on
+              <a href="https://github.com/vdixon531/L-auxiliaire" target="_blank" rel="noreferrer">the GitHub repository</a>.
+            </p>
+          </div>
+        </details>
+      </section>
+
+      <footer class="page__foot">
+        Made by Valmik ·
+        <a href="privacy.html">Privacy</a> ·
+        <a href="../welcome/welcome.html">Tutorial</a> ·
+        <a href="https://github.com/vdixon531/L-auxiliaire" target="_blank" rel="noreferrer">Source on GitHub</a>
+      </footer>
+    </main>
+
+    <script type="module" src="pages.js"></script>
+  </body>
+</html>

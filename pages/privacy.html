@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>L'auxiliaire — Privacy</title>
+    <link rel="stylesheet" href="../lib/theme.css" />
+    <link rel="stylesheet" href="pages.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="page__head">
+        <p class="page__eyebrow">L'auxiliaire</p>
+        <h1>Privacy policy</h1>
+        <p class="page__lede">
+          The short version: this extension has no server, and nothing you read or save
+          is sent anywhere.
+        </p>
+      </header>
+
+      <p>Last updated 2 September 2026.</p>
+
+      <h2>What is collected</h2>
+      <p>
+        Nothing. There is no account, no sign-in, no analytics, no telemetry, no crash
+        reporting, no advertising and no third-party SDK. The developer has no server and
+        receives no data about you or your use of the extension — there is no mechanism
+        by which they could.
+      </p>
+
+      <h2>What is stored, and where</h2>
+      <p>
+        Everything the extension remembers is written to Chrome's local extension storage
+        on this computer (<code>chrome.storage.local</code>). It is not synced to your
+        Google account and it is not uploaded anywhere. It holds:
+      </p>
+      <ul>
+        <li>
+          <strong>Saved words</strong> — the word, its translation, the sentence you met
+          it in, and the address and title of the page or the name of the PDF it came
+          from.
+        </li>
+        <li>
+          <strong>Your collections and workbook names</strong>, including any lists you
+          created or renamed yourself, and the order you dragged them into.
+        </li>
+        <li>
+          <strong>Saved conjugation tables</strong> you chose to keep.
+        </li>
+        <li>
+          <strong>Settings</strong> — hover mode, slower speech, light/dark choice, and
+          your reading-aid colours.
+        </li>
+        <li>
+          <strong>A translation cache</strong>, so a phrase you look at twice isn't
+          translated twice. Entries expire after seven days and the cache is capped.
+        </li>
+        <li>
+          <strong>Tutorial progress</strong> — which parts of the tour you have seen.
+        </li>
+        <li>
+          <strong>PDF handoff records</strong> — when you open a PDF, its bytes are held
+          briefly in this browser's IndexedDB so the viewer tab can read them. These are
+          swept automatically after 30 minutes.
+        </li>
+      </ul>
+      <p>
+        Uninstalling the extension deletes all of it. Export your words first if you want
+        to keep them — the workbook's <strong>Export</strong> button produces a CSV file
+        or an Anki deck.
+      </p>
+
+      <h2>What leaves your computer</h2>
+      <p>There are exactly three cases, and none of them involve the developer.</p>
+
+      <h2>1. Translation</h2>
+      <p>
+        Translation runs <em>on your machine</em>, through Chrome's built-in
+        <code>Translator</code> API. The text you translate is not sent over the network.
+      </p>
+      <p>
+        The first time you translate, Chrome downloads a French → English language pack
+        from Google. That is a Chrome download, made by the browser, and it happens once.
+        Afterwards translation works with no network connection at all.
+      </p>
+
+      <h2>2. Speaking practice</h2>
+      <div class="note">
+        <p>
+          <strong>Practice sessions are the one part of this extension that is not
+          on-device.</strong> Speech recognition is provided by Chrome's Web Speech API,
+          which transcribes your speech using a Google service — so audio captured during
+          a practice turn may be sent to Google's servers and is handled under Google's
+          privacy policy, not this one.
+        </p>
+      </div>
+      <p>
+        The microphone is only ever opened while a practice turn is running, after you
+        have granted permission and pressed to start. The extension does not record,
+        store or transmit audio itself, and nothing from a practice session is saved —
+        session state lives in memory and is gone when you close the panel. If you would
+        rather nothing left the machine, don't use the Practice tab; every other feature
+        works without it.
+      </p>
+
+      <h2>3. Reopening a PDF from a website</h2>
+      <p>
+        The popup's "reopen this PDF" button fetches that PDF from the site you are
+        already on, so the extension can display it. That request goes to that site and
+        nowhere else, and only when you press the button.
+      </p>
+
+      <h2>Permissions, and why each one exists</h2>
+      <ul>
+        <li><strong>storage</strong> — to keep your words and settings, as above.</li>
+        <li>
+          <strong>activeTab</strong> — to act on the tab you are looking at when you use
+          the extension. It grants no standing access to your browsing.
+        </li>
+        <li><strong>sidePanel</strong> — to open the workbook beside the page.</li>
+        <li>
+          <strong>alarms</strong> — to sweep the expired translation cache and old PDF
+          handoff records on a timer.
+        </li>
+        <li>
+          <strong>offscreen</strong> — Chrome's translation API needs a real document to
+          run in, which a background service worker isn't. This creates a hidden one.
+        </li>
+      </ul>
+      <p>
+        The extension deliberately requests <em>no host permissions</em> — it never asks
+        for standing access to read the sites you visit. Its content script runs in the
+        page to make click-to-translate work, and reads only the text you click, select or
+        hover.
+      </p>
+
+      <h2>Children</h2>
+      <p>
+        The extension is not directed at children and collects no personal information
+        from anyone, of any age.
+      </p>
+
+      <h2>Changes</h2>
+      <p>
+        If this policy ever changes, the updated version will ship with the extension and
+        carry a new date at the top of this page.
+      </p>
+
+      <h2>Contact</h2>
+      <p>
+        Questions, or something here that looks wrong? Open an issue on
+        <a href="https://github.com/vdixon531/L-auxiliaire" target="_blank" rel="noreferrer">the GitHub repository</a>.
+        The source is public — every claim on this page can be checked against it.
+      </p>
+
+      <footer class="page__foot">
+        Made by Valmik ·
+        <a href="faq.html">FAQ</a> ·
+        <a href="../welcome/welcome.html">Tutorial</a> ·
+        <a href="https://github.com/vdixon531/L-auxiliaire" target="_blank" rel="noreferrer">Source on GitHub</a>
+      </footer>
+    </main>
+
+    <script type="module" src="pages.js"></script>
+  </body>
+</html>

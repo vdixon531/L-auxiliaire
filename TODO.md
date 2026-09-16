@@ -2,21 +2,328 @@
 
 Current phase: **Phase 4 — PDF support** (Phase 3, Leitner SRS, deliberately
 deferred — the user prioritized PDF support instead at this stage)
-## Defects
+## Defects (2026-09-02)
 
-1. [] Tutorial - steps 4-6 the step info message is appearing below the pop up, so the point to the button is hidden
-2. [] Tutorial - steps 4-6 when it opens the workbook and you click got it on the pop up there it should move you to the next step.
-3. [] Tutorial - lets swap the order of steps 4 and 5?
-4. [] Tutorial - This message "That's the page half. The other half is your workbook — take its tour next." should be a pop up box like the ones used in the steps 1-6 that appears over the related button. It should disappear in the appropriate number of seconds.
-5. [] Tutorial - for "Select a whole passage" the step should allow the user to actually perform the action and see how it works, on the sample sentence.
-6. [] In the conjugation pop ups,  "~7,000 verbs bundled with the extension — no network involved." 7000 is mentioned too many times and no network too. lets only mention 7000 once on the sidepanel pop up, dont want to see it on any of the main page pop ups.
-7. [] Reading a pdf step is wayy too long and unnecessary. The user doesn't need all that info just show them where to tap and how to open a pdf
-8. []
+**Unvalidated in a real browser** — same caveat every previous batch had before
+its own hands-on pass.
 
-## Features 
-1. [] I want to add a footer on the tutorial page and maybe something at the bottom of the workbook(or maybe only settings page) that says "Made by Valmik" or a link to the repo and a FAQs page.
-2. [] Create a FAQs page and a privacy policy
+1. [x] Tutorial - steps 4-6 the step info message is appearing below the pop up, so the point to the button is hidden
+       — a z-index collision, not a placement bug. `content/popup.css` gives
+       `.fla-bubble` the maximum z-index (2147483647) so it beats whatever a
+       host page stacks; `lib/tour.css` puts the tour overlay at 9999. The
+       welcome page is the one document where both exist, so the bubble painted
+       over the callout for the Conjugate/Workbook/Save steps, arrow and all.
+       `welcome/welcome.css` drops the bubble to 9998 for that page only —
+       nothing there competes for the stack — so the callout is legible and the
+       scrim now correctly dims the rest of the bubble around the spotlit button.
+2. [x] Tutorial - steps 4-6 when it opens the workbook and you click got it on the pop up there it should move you to the next step.
+       — the cross-document relay gained a return leg. `sidepanel.js` writes
+       `tourSpotlightDone: { at }` when its relayed spotlight is dismissed
+       (however it was dismissed — Got it, Skip, Esc, click-away), and
+       `welcome.js` advances its tour when that `at` matches the spotlight it
+       is waiting on. Matching on `at` rather than "something was dismissed" is
+       what stops a stale acknowledgement advancing the tour twice.
+3. [x] Tutorial - lets swap the order of steps 4 and 5? — Workbook now comes
+       before Conjugate, and it reads better than the swap alone suggests: the
+       workbook is where both of the other two buttons put their results, so
+       meeting it first means the conjugation table and the saved word land
+       somewhere already introduced.
+4. [x] Tutorial - the "That's the page half..." message is now a callout over
+       the button it's about. New `showHint()` in `lib/tour.js`: the same
+       component a step uses, minus the scrim, blocker and footer, anchored to
+       `#workbookTour`, self-dismissing after 9s. Deliberately NOT routed
+       through `runTour()` — a hint must never become the `active` tour, or
+       `isTourActive()` would report a tour running and the demo bubble would
+       stop dismissing itself on click. `<p id="afterTourPrompt">` and its CSS
+       are gone.
+5. [x] Tutorial - "Select a whole passage" now lets the user do it. The welcome
+       page reproduces the selection path as well as the click path
+       (`demoSelection()`, `showSelectionBubble()`, `renderDeferredBubble()`,
+       `segmentCount()` mirrored from `content/content-script.js`). The chapter
+       is two steps: drag it yourself (interactive, `hideNext`, advances on a
+       real selection), then the whole paragraph selected for you so the real
+       deferred 🌐 Translate button is on screen to press. The demo paragraph
+       gained two short sentences to reach four — `DEFER_TRANSLATE_SEGMENTS` is
+       4, so without them the step couldn't demonstrate what it's about.
+       Two traps found building it: (a) a bare `mouseup` listener re-reads
+       whatever is still selected, so pressing the bubble's own 🌐 button
+       rebuilt the bubble out from under the click and the button looked dead —
+       fixed by only acting on a drag that *started* in the paragraph; (b) that
+       step targets `.fla-bubble`, not `.fla-bubble .fla-translate`, because
+       pressing 🌐 swaps the bubble's contents and a cutout aimed at the button
+       would be measuring a detached element. `lib/tour.js` now also observes
+       the target with its `ResizeObserver`, so the cutout follows the bubble
+       as it grows.
+6. [x] In the conjugation pop ups, the verb count / "no network" claim now
+       appears exactly once, in the sidepanel spotlight the Conjugate button
+       relays (`welcome.js#requestConjugation`). Dropped from the core tour's
+       Conjugate step, the conjugation chapter, and the panel tour's
+       Conjugation tab step.
+7. [x] Reading a PDF step cut from three paragraphs of centred prose to two
+       lines anchored on the drawn toolbar icon: where to click, and that
+       everything works the same inside.
+8. [x] Ignore only numbers selected — done. `getSelectionText()` (both
+       copies) rejects a selection with no letter in it (`/\p{L}/u`): "2026",
+       "12,5 %" and "(3)" are numbers, prices and footnote markers, never
+       words, and translating one just echoed the digits back. Clicking a
+       number was always inert — `getWordAtPoint()`'s word class is letters
+       only — so this is the selection path catching up.
+       **"Disable on pages with absolutely no French" — asked and declined,
+       deliberately not built.** Four shapes were weighed (auto-dormant below a
+       French-ness ratio with a per-site override; a manual per-site toggle
+       only; auto-dormant with no escape hatch; nothing) and the call was that
+       the numbers fix already removes the actual annoyance — clicking a word
+       on an English page is at least a deliberate act, whereas a number
+       echoing itself back was not.
+       Worth recording for whoever revisits it: the detector would be nearly
+       free. `content/annotator.js` already looks every scanned word up in the
+       bundled lexicon, so the share that hits it is a usable French-ness
+       ratio — an English page hits only coincidences (a, on, main, note, son,
+       sur). The hard part was never the signal; it was that a page whose text
+       arrives late, or a mostly-English page with a French quote, would go
+       quiet with no obvious way to say otherwise. Any revival should carry a
+       manual override, not just a threshold.
+9. [x] Reworked the Practice tab's process and flow. Scoped via a `/grill-me`
+       session first (interview log kept in the session, not duplicated here)
+       — the load-bearing calls made there:
+       - **No mic button.** The turn loop is fully automatic: a user turn
+         shows a 2.5s countdown on its own line (left-border wipe + pulsing
+         mic icon, one CSS transition, no JS ticking), then the mic opens on
+         its own. `listenOnce()` already ended a turn on trailing silence, not
+         a button press, so this was a matter of triggering it on a timer.
+       - **Ready-screen editing.** Click a line's text to edit before Begin
+         Practice; `×` deletes (floor of two lines); `+ line` appends a blank
+         one. A commit re-translates just that line and re-derives mode/roles.
+       - **Controls cut to Skip / Pause / Stop**, all live from any running
+         state. The wall of instructional text on the ready screen and the
+         per-turn "Your turn — say the highlighted line…" prompt are gone,
+         replaced by a few words on the line itself ("Say this in French" /
+         "Read this aloud") and a new ⓘ info modal for anyone who wants detail.
+       - **Scores held back except on an outright miss.** A first attempt
+         under 20% (`ADVANCE_GATE` — flat across modes, replacing the old
+         per-mode pass bar as the thing that gates advancing) reveals the
+         line's French and offers one more try — silence gets one retry, a
+         wrong-but-spoken answer gets two. Budget spent marks the line
+         **struggled**, kept distinct from **skipped** and **cleared**; all
+         three show as the same neutral grey tick mid-session, splitting back
+         apart in the summary. The reported score is always the **first**
+         attempt (before any reveal) — a later attempt read off the reveal
+         measures reading, not recall.
+       - **Two consecutive fully-silent lines auto-pauses the session**
+         instead of marching through the rest of the dialogue at zero; any
+         hard recognition error pauses immediately too, for the same reason.
+       - **Summary rewritten**: one row per user line — source text, the
+         French reference (▶ to hear it), what was said, the coloured
+         word-diff, and the score. Skipped-before-any-attempt rows show just
+         source + reference, no diff.
+       - **Paragraphs with no dialogue markers are a `solo` flag, not a new
+         mode** — re-derived on every edit, since adding an English line to a
+         French passage can turn it non-solo without any line gaining a
+         marker. A solo French passage reads start to finish (no alternation);
+         a solo English one was already identical to the existing all-English
+         drill mode.
+       Recognition's silence window went 1.8s → 2.5s (no ✓ Done button left to
+       end a turn on purpose, so trailing silence needs more room for a
+       mid-sentence pause) and the no-speech timeout 9s → 6s (the on-screen
+       countdown already tells the user exactly when to start).
+       **Unvalidated in a real browser** — same caveat every previous phase
+       had before its own hands-on pass; the countdown timing, the 2.5s
+       silence window and the repeat-budget sizes are reasoned guesses, most
+       likely to need adjusting after one real session.
+10. [x] Tech debt: tutorial-related punch list. Scoped via a `/grill-me`
+        session first (interview log kept in the session, not duplicated
+        here) — the seven items and what each turned into:
+        - **Quotes on "traverse".** Every tour mention (steps 3, 5, and the
+          conjugation chapter) now reads `"traverse"`, not *traverse* —
+          quotes alone say "this exact word"; stacking italics on top read as
+          over-marked for one word repeated six times.
+        - **Steps 4–6 lead with what pressing the button does.** Workbook and
+          Save already opened that way; Conjugate didn't ("When the word is a
+          verb, this looks up its full conjugation…") and now does ("Opens
+          your workbook's Conjugation tab, with "traverse" already looked
+          up.").
+        - **"Workbook pop ups to the bottom" turned out to mean something
+          bigger once discussed**: not a placement bug (panel callouts
+          already render below their targets) but that the workbook tour
+          itself goes unnoticed as a separate, optional thing. See the merge
+          below — this item and "emphasize the workbook tour more" resolved
+          together.
+        - **The post-core-tour nudge is louder, without the scrim that was
+          asked for.** A scrim was ruled out deliberately (it would make
+          `isTourActive()` true and stop the demo bubble dismissing on
+          click — see `CLAUDE.md`), so instead: the hint's `showHint()`
+          callout gained an accent border and heavier shadow, its on-screen
+          duration went 9s → 14s, and a pulsing ring now draws the eye to the
+          `#workbookTour` button itself. This is now the decline-only path —
+          see the merge below for what happens on accept.
+        - **The core and workbook tours are now one flow behind a consent
+          gate**, not two tutorials you had to notice separately. The core
+          tour's 6th step is followed by a 7th: a centred "One half done"
+          step with two real buttons — **"Show me the workbook"** (accepts,
+          hands off to the panel's own tour) and **"Not now"** (declines,
+          same as any Skip). Accepting doesn't close anything; declining
+          triggers the louder hint above. The existing standalone entry
+          points ("Tour the workbook" on the welcome page, the panel's own
+          first-open tour) are untouched — only added to, not replaced.
+          `lib/tour.js` gained two small additive step options for this
+          (`showSkip`, `skipLabel`) so a step can keep Skip visible even as
+          the last one, with its own label.
+        - **The traverse context-sentence bug — confirmed and fixed.**
+          `CONTEXT_SENTENCE` was a single hardcoded constant (the demo
+          paragraph's first sentence) fed to every clicked word regardless of
+          which sentence it was actually in — harmless for a first-sentence
+          word, silently wrong for "traverse" (second sentence), so saving it
+          saved the wrong context. Replaced with `contextSentenceFor(range)`,
+          the same probe-then-sentence-split principle `CLAUDE.md` already
+          documents for the real content script, sized to the demo's flat,
+          known DOM.
+        - **Two new steps in the workbook tour**: a "Settings" step
+          spotlighting the ⚙ tab (right after Practice, which already
+          half-promised it: "the gear beside it holds every setting" was
+          removed from Practice's own copy since this step now does that
+          job), and a "Find a word" step spotlighting the search bar, before
+          "Take it with you" (whose own copy dropped its now-duplicate
+          mention of search).
+        **Unvalidated in a real browser** — same caveat every previous phase
+        had before its own hands-on pass. The seam between the two tours (the
+        gate's accept path, `panelTourRequest`'s freshness window against
+        `chrome.sidePanel.open()`'s user-activation requirement) is the part
+        most worth a real hands-on check first.
 
+
+## Defects (2026-09-11) — hands-on tutorial pass
+
+Found by running the tutorial in a real browser. All four fixed; still
+unvalidated in a browser themselves.
+
+1. [x] **Centred tour steps rendered darker than anchored ones** — reported
+       more than once before this and missed each time, because it looked
+       like a theme/token problem and wasn't. `.fla-tour__callout` is
+       `position: fixed` with `z-index: 1`, so it forms a stacking context,
+       and a `z-index: -1` child of a stacking context does **not** paint
+       behind its parent's background — the parent's background paints first
+       and the negative child lands on top of it. The centred scrim was that
+       child (`.fla-tour--centred .fla-tour__callout::before`), so 62% of the
+       scrim colour was being painted over the callout's own `--fla-overlay`
+       background. Every centred step (the new gate, the reading-aids
+       sign-off, the practice and shortcuts chapters) was affected; anchored
+       steps never were, since the pseudo-element only exists for centred
+       ones — which is exactly why it read as "these two pop-ups have
+       different colours". Now `.fla-tour--centred::before`, a sibling behind
+       the callout rather than a child of it.
+2. [x] **The demo bubble didn't move when the side panel opened.** Opening
+       the workbook narrows the tab's viewport and reflows the paragraph, but
+       the bubble had been positioned in page coordinates against the old,
+       wider one — so it sat half under the panel's edge with its 📖 Workbook
+       button sliced off, and the tour spotlit a button that was no longer
+       fully on screen. The tour's own callout already re-placed itself on
+       resize; the bubble now does too. `placeBubble()` stores its anchor on
+       the element and a debounced `resize` listener re-runs it. The anchor is
+       deliberately the live Element or Range, never a snapshot `DOMRect` —
+       only the first two can be re-measured after a reflow, so the selection
+       path now threads `sel.range` where it used to pass `sel.rect`.
+3. [x] **The conjugation spotlight scrolled the panel into the middle of the
+       tenses.** `scrollIntoViewIfNeeded()` centres its target, and
+       `#conjugationTable` is taller than the panel viewport — centring
+       something that can't fit guarantees its top scrolls off, taking the
+       verb input and the tab bar with it. Now: a target at least as tall as
+       the viewport whose top is already on screen isn't scrolled at all, and
+       one whose top is above it gets `block: "start"` rather than `"center"`.
+       Short targets are unaffected, so the other panel steps behave as before.
+4. [x] **The workbook tour no longer dies on a stray click.** New
+       `runTour({ dismissOnClickAway: false })` — the blocker still swallows
+       clicks on the dimmed area but stops ending the tour. Used by both of
+       the side panel's tours (the first-open walkthrough and the relayed
+       spotlight), since the panel is a surface the user is being walked
+       *through* and clicking a workbook row shouldn't quietly cancel the
+       tutorial. The welcome page keeps the default: a popover on a page
+       you're reading should close when you click away.
+       **Esc and Skip deliberately still exit**, in both cases — the
+       click-away default exists so a tour can't become a trap, and removing
+       every exit would recreate exactly that. Say so if you want Esc gone
+       too.
+
+## Defects (2026-09-11, second pass)
+
+1. [x] **The dark centred pop-up — actually fixed this time, and the earlier
+       diagnosis was wrong.** It was never a theme or token problem, which is
+       why several passes looking at colours found nothing. Two mechanisms,
+       the first load-bearing: `.fla-tour--centred .fla-tour__callout` has
+       `transform: translate(-50%, -50%)`, and **a transformed element becomes
+       the containing block for its `position: fixed` descendants** — so the
+       scrim's `inset: 0` resolved against the callout's own box, not the
+       viewport. It never dimmed the page at all; it painted
+       `rgba(4,22,39,0.62)` over the callout itself, turning a light `#eef2fa`
+       panel into dark slate. (Separately: the callout is `position: fixed`
+       with `z-index: 1`, so it forms a stacking context, and a `z-index: -1`
+       child of one paints *above* its parent's background, not behind it.)
+       Moving the scrim to the untransformed root fixes both the tint and the
+       fact that centred steps never dimmed the page.
+2. [x] **The tutorial now ends in one place and closes the workbook.**
+       `finishTutorial()` shuts the panel, reveals the chapters and points at
+       them with the same hint-plus-pulse treatment the workbook tour used to
+       get. Declining the gate calls it directly; accepting it can't, because
+       the workbook tour runs in the other document — so `sidepanel.js` writes
+       `panelTourDone` when its tour ends (however it ended) and the welcome
+       page finishes off that, guarded by an `awaitingPanelTour` flag so a
+       tour the user starts themselves later can't re-trigger the ending.
+       The old "take the workbook tour next" hint is gone: the gate already
+       asks that question, so re-nagging about it after a decline was
+       redundant — the chapters are the right next thing either way.
+3. [x] **The passages chapter is four steps, not two** — the drag, the
+       deferred preview, 🌐 Translate, 🎙 Practice, one idea each. The last
+       three are deliberately non-interactive: pressing 🌐 swaps the bubble's
+       contents out from under the cutout (a detached target measures all
+       zeros and the spotlight jumps to the corner), and 🎙 would navigate to
+       the side panel mid-chapter. `ensureDeferredBubble()` rebuilds the
+       deferred state only when it isn't already up, so the three steps don't
+       tear the bubble down and recreate it underneath the spotlight that just
+       measured it.
+4. [x] **Chapter tours no longer dismiss on click-away** — same
+       `dismissOnClickAway: false` the side panel's tours use. Needed by the
+       above: those steps spotlight buttons the blocker won't let you press,
+       and with the default, reaching for the highlighted button would have
+       closed the chapter instead. Skip and Esc still exit.
+5. [x] **A taken chapter is dimmed, not ticked.** A tick adds a mark to read;
+       receding says the same thing with nothing to read, and leaves the
+       unvisited tiles as the only bright things in the grid. Hover restores
+       it fully, since a taken chapter is still replayable. The icon greys via
+       `filter: grayscale(1)`, never `opacity` — opacity on a tinted surface
+       is exactly what `check-contrast.js` exists to catch.
+6. [x] **Speaking practice and Shortcuts anchor to their own card** rather
+       than centring. Both describe something that lives elsewhere (the mic is
+       in the side panel, the shortcuts are on the keyboard), which is why
+       they had nothing to point at — but the card the user just clicked is
+       where their eye already is.
+
+**Unvalidated in a real browser.** The riskiest piece is #2's accept path: if
+the panel tour never runs, `panelTourDone` never arrives and the workbook
+isn't closed. The chapters are revealed before that point either way, so the
+user is never stuck — but the panel would stay open.
+
+## Techdebt
+
+1. []  what happens if its masc/fem and pulral at the same time 
+2. []  make add words more apparent
+
+## Features (2026-09-02)
+
+1. [x] Colophon — "Made by Valmik" plus FAQ, Privacy and repo links, at the
+       foot of the welcome page and at the foot of Settings in both the popup
+       and the side panel (shared markup, wired once in
+       `lib/settings-panel.js#wireAboutLinks`). Real `<a href>`s for
+       middle-click and screen readers, but the plain click is intercepted and
+       opened in a tab: following one in place would navigate the side panel
+       away from the workbook, or load a page into a popup that closes the
+       moment focus moves.
+2. [x] `pages/faq.html` + `pages/privacy.html` (with `pages.css`/`pages.js`) —
+       ordinary extension pages, theme-aware via `lib/theme-mode.js`, FAQ built
+       from `<details>` so the browser owns the open/closed state. The privacy
+       page discloses the one thing that genuinely isn't on-device: Chrome's
+       Web Speech API transcribes practice audio through a Google service.
+       Every other claim was checked against the code — no
+       `chrome.storage.sync`, and no `fetch` outside bundled resources and the
+       user-initiated "reopen this PDF".
 
 ## Weekend 1 tasks (in order)
 

@@ -74,11 +74,8 @@
     <section id="practice" class="view">
       <div id="practiceSetup">
         <p class="hint">
-          Select a dialogue on a page and click 🎙 Practice, or paste one below
-          (one line per speaker). All-French dialogues alternate reading turns;
-          mixed French/English dialogues ask you to say the English lines in
-          French. PDF selections may split lines mid-sentence — tidy them up
-          here first.
+          Paste a dialogue or a passage, or select text on a page and choose
+          🎙 Practice.
         </p>
         <textarea id="practiceInput" rows="6" placeholder="— Bonjour, comment ça va ?&#10;— Ça va bien, merci !"></textarea>
         <div class="toolbar">
@@ -91,15 +88,27 @@
         <canvas id="practiceWave" hidden></canvas>
         <div id="practiceMicHint" class="mic-hint" hidden></div>
         <div class="toolbar">
-          <button id="micBtn" hidden>🎤 Speak</button>
-          <button id="practiceDone" hidden>✓ Done</button>
-          <button id="practiceListen" hidden>🔊 Listen</button>
-          <button id="practiceListenSlow" hidden>🐢 Slowly</button>
-          <button id="practiceRetry" hidden>Try again</button>
+          <button id="practicePause" hidden>Pause</button>
           <button id="practiceSkip" hidden>Skip</button>
           <button id="practiceStop">■ Stop</button>
         </div>
         <div id="practiceResult"></div>
+      </div>
+
+      <button id="practiceInfo" class="info-btn" type="button" title="How practice works" aria-label="How practice works">ⓘ</button>
+
+      <div id="practiceInfoModal" class="modal" hidden>
+        <div class="modal-card">
+          <h3>How practice works</h3>
+          <p>Paste or select a dialogue. Tap any line to edit it before you start.</p>
+          <p>Lines tagged <b>fr</b> are read to you. Lines tagged <b>en</b> are yours to say in French.</p>
+          <p>After a short countdown the mic opens on its own — just speak, then pause.</p>
+          <p>Scores are held back until the end, so you can keep your flow. A line that doesn't land at all is replayed once with the French shown.</p>
+          <p>Not being heard? It's almost always the wrong input device — check the level meter.</p>
+          <div class="toolbar">
+            <button id="practiceInfoClose" type="button">Got it</button>
+          </div>
+        </div>
       </div>
 
       <div id="micModal" class="modal" hidden>
@@ -189,6 +198,15 @@
           <button id="replayTour" class="link-btn" type="button">Replay</button>
         </div>
       </section>
+
+      <footer class="about">
+        <p class="about__made">Made by Valmik</p>
+        <p class="about__links">
+          <a href="../pages/faq.html">FAQ</a>
+          <a href="../pages/privacy.html">Privacy</a>
+          <a href="https://github.com/vdixon531/L-auxiliaire">Source</a>
+        </p>
+      </footer>
     </section>
 
     <div id="exportMenu" class="ctx-menu" role="menu" hidden>

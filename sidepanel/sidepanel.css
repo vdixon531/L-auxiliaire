@@ -95,7 +95,6 @@ body {
 
 .toolbar button,
 .save-verb,
-#micBtn,
 #micGrantBtn,
 #practiceResult button {
   padding: 6px 11px;
@@ -120,8 +119,7 @@ body {
 #lookupVerb,
 #practiceStart,
 #micGrantBtn,
-#micBtn,
-#practiceDone {
+#practiceResult [data-action="begin"] {
   background: var(--fla-primary);
   border-color: var(--fla-primary);
   color: var(--fla-on-primary);
@@ -131,8 +129,7 @@ body {
 #lookupVerb:hover,
 #practiceStart:hover,
 #micGrantBtn:hover,
-#micBtn:hover,
-#practiceDone:hover {
+#practiceResult [data-action="begin"]:hover {
   background: var(--fla-primary-soft);
   border-color: var(--fla-primary-soft);
   color: var(--fla-on-primary);
@@ -912,6 +909,7 @@ body {
   margin-bottom: var(--fla-gutter);
   max-height: 45vh;
   overflow-y: auto;
+  position: relative;
 }
 
 .pline {
@@ -925,6 +923,7 @@ body {
   line-height: 1.5;
   border-left: 2px solid transparent;
   color: var(--fla-ink-muted);
+  position: relative;
 }
 
 .pline.current {
@@ -933,12 +932,60 @@ body {
   color: var(--fla-ink);
 }
 
-.pline.done .pline-text {
-  color: var(--fla-accent);
+.pline.finished .pline-text {
+  color: var(--fla-ink-faint);
 }
 
-.pline.failed .pline-text {
-  color: var(--fla-ink-faint);
+/* The countdown before the mic opens on a user turn — a left border that
+   wipes over PRE_ROLL_MS, plus a pulsing mic icon. A single CSS transition,
+   no JS ticking: `.pre-roll` sets the un-filled starting state, and
+   practice-panel.js adds `.pre-roll--run` one frame after the element exists
+   so the browser has something to transition FROM rather than painting the
+   end state on first paint. */
+.pline.pre-roll {
+  border-left-color: transparent;
+}
+
+.pline.pre-roll::before {
+  content: "";
+  position: absolute;
+  left: -2px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--fla-accent);
+  transform: scaleY(0);
+  transform-origin: top;
+}
+
+.pline.pre-roll.pre-roll--run::before {
+  transition: transform 2.5s linear;
+  transform: scaleY(1);
+}
+
+.pline.pre-roll .pline-role {
+  animation: fla-pline-pulse 1s ease-in-out infinite;
+}
+
+@keyframes fla-pline-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pline.pre-roll::before {
+    transform: scaleY(1);
+  }
+  .pline.pre-roll.pre-roll--run::before {
+    transition: none;
+  }
+  .pline.pre-roll .pline-role {
+    animation: none;
+  }
 }
 
 .pline-role {
@@ -959,11 +1006,11 @@ body {
   padding: 2px 4px;
 }
 
-.pline-score {
-  font-family: var(--fla-sans);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  color: var(--fla-ink-muted);
+/* Progress without a verdict — no number, no colour. Scores stay withheld
+   for the summary; this just says a line is behind you. */
+.pline-check {
+  color: var(--fla-ink-faint);
+  font-size: 13px;
 }
 
 .pline-gloss {
@@ -973,15 +1020,12 @@ body {
   font-style: italic;
 }
 
-/* The model French, revealed only once a translate turn is resolved. */
-.pline-reveal {
-  display: flex;
-  align-items: baseline;
-  gap: 5px;
-  margin-top: var(--fla-xs);
-  font-family: var(--fla-serif);
-  font-size: 14px;
-  color: var(--fla-accent);
+.pline-instruction {
+  font-family: var(--fla-sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--fla-accent-deep);
 }
 
 .pline-play {
@@ -1002,6 +1046,80 @@ body {
   color: var(--fla-ink);
 }
 
+/* -----------------------------
+   Ready-screen editing
+   ----------------------------- */
+
+.pline--edit .pline-text {
+  cursor: text;
+  border-radius: 3px;
+}
+
+.pline--edit .pline-text:hover {
+  background: var(--fla-raised);
+}
+
+.pline--editing {
+  padding: 4px 10px;
+}
+
+.pline-edit-input {
+  flex: 1 1 auto;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 6px;
+  border: 1px solid var(--fla-primary);
+  border-radius: 3px;
+  background: var(--fla-card);
+  color: var(--fla-ink);
+  font-family: var(--fla-serif);
+  font-size: 15px;
+}
+
+.pline-edit-input:focus {
+  outline: none;
+}
+
+.pline-del {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 0 6px;
+  border: none;
+  background: none;
+  color: var(--fla-ink-faint);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.pline-del:hover {
+  color: var(--fla-error);
+}
+
+.pline-del:disabled {
+  color: var(--fla-ink-disabled);
+  cursor: not-allowed;
+}
+
+.pline-add {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px dashed var(--fla-line-strong);
+  border-radius: var(--fla-r-sm);
+  background: none;
+  color: var(--fla-ink-faint);
+  font-family: var(--fla-sans);
+  font-size: 12px;
+  cursor: pointer;
+  margin-top: var(--fla-xs);
+}
+
+.pline-add:hover {
+  border-color: var(--fla-ink-faint);
+  color: var(--fla-ink-muted);
+}
+
 .pinterim {
   font-family: var(--fla-serif);
   font-size: 14px;
@@ -1010,9 +1128,11 @@ body {
   min-height: 1.4em;
 }
 
-.ppass {
-  color: var(--fla-accent);
-  font-weight: 600;
+/* The wordless tick after a clear — neutral, like the mid-session line
+   check, never the pass-green the old always-visible score used. */
+.pcleared {
+  color: var(--fla-ink-faint);
+  font-size: 20px;
 }
 
 .pfail {
@@ -1103,7 +1223,8 @@ body {
 
 .psummary td {
   border-bottom: 1px solid var(--fla-line);
-  padding: 5px 6px;
+  padding: 7px 6px;
+  vertical-align: top;
 }
 
 .psummary td:last-child {
@@ -1115,8 +1236,93 @@ body {
   color: var(--fla-ink-faint);
 }
 
+/* Score tiers, on the row's first cell so the whole line reads as one unit
+   rather than just colouring the percentage. PASS_THRESHOLD still decides
+   strong vs. ok — cosmetic only now, it no longer gates advancing. */
+.prow-strong td:first-child {
+  border-left: 2px solid var(--fla-accent);
+}
+
+.prow-ok td:first-child {
+  border-left: 2px solid var(--fla-line-strong);
+}
+
+.prow-struggled td:first-child {
+  border-left: 2px solid var(--fla-warn-line);
+}
+
+.prow-skipped td:first-child,
+.prow-skipped td {
+  color: var(--fla-ink-faint);
+}
+
+.prow-ref {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  margin-top: 3px;
+  font-family: var(--fla-serif);
+  font-size: 13px;
+  color: var(--fla-accent-deep);
+}
+
+.prow-said {
+  margin-top: var(--fla-xs);
+  font-family: var(--fla-sans);
+  font-size: 12px;
+  font-style: italic;
+  color: var(--fla-ink-muted);
+}
+
+.psummary .pdiff {
+  margin: 3px 0 0;
+  font-size: 14px;
+}
+
+.prow-tag {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--fla-warn-tint);
+  color: var(--fla-warn);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 #practiceResult .toolbar {
   margin-top: var(--fla-gutter);
+}
+
+/* -----------------------------
+   Info button (how practice works)
+   ----------------------------- */
+
+/* .theme-toggle already floats over the whole panel at bottom-right (see
+   above) — this mirrors it at bottom-LEFT rather than sitting on top of it.
+   Fixed, not scoped to #practice's own layout, so it stays parked over the
+   viewport corner regardless of how far the line list scrolls. */
+.info-btn {
+  position: fixed;
+  left: 12px;
+  bottom: 12px;
+  z-index: 6;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--fla-line);
+  border-radius: 50%;
+  background: var(--fla-card);
+  color: var(--fla-ink-faint);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: var(--fla-shadow-sm);
+}
+
+.info-btn:hover {
+  color: var(--fla-ink);
+  border-color: var(--fla-ink-faint);
 }
 
 /* -----------------------------
@@ -1433,4 +1639,41 @@ body {
   margin-top: 2px;
   margin-bottom: var(--fla-sm);
   font-size: 11px;
+}
+
+/* -----------------------------
+   Colophon (lib/settings-panel.js#wireAboutLinks)
+   Quiet by design — it's an attribution and two reference links, not a control.
+   ----------------------------- */
+
+.about {
+  margin-top: var(--fla-lg);
+  padding-top: var(--fla-gutter);
+  border-top: 1px solid var(--fla-line);
+  text-align: center;
+}
+
+.about__made {
+  margin: 0;
+  font-size: 12px;
+  color: var(--fla-ink-faint);
+}
+
+.about__links {
+  margin: var(--fla-xs) 0 0;
+  display: flex;
+  justify-content: center;
+  gap: var(--fla-gutter);
+  font-size: 12px;
+}
+
+.about__links a {
+  color: var(--fla-ink-muted);
+  text-decoration: none;
+  border-bottom: 1px solid var(--fla-line-strong);
+}
+
+.about__links a:hover {
+  color: var(--fla-ink);
+  border-bottom-color: var(--fla-ink);
 }

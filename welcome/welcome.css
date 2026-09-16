@@ -1,6 +1,18 @@
 /* Welcome page. Tokens come from lib/theme.css; the bubble and annotated words
    come from content/popup.css, unchanged, so the demo matches a real page. */
 
+/* ...with one exception. content/popup.css gives the bubble the maximum
+   z-index, because on a host page it has to beat whatever that page stacks. On
+   THIS page the only thing above it is our own tour overlay (lib/tour.css,
+   z-index 9999), and the bubble outranking it put the callout for the
+   Conjugate/Workbook/Save steps behind the very bubble those steps point into
+   — arrow and all. Nothing on this page competes for the stack, so the bubble
+   drops below the tour: the callout is legible, and the scrim dims the rest of
+   the bubble around the one spotlit button. */
+.fla-bubble {
+  z-index: 9998;
+}
+
 body {
   margin: 0;
   font-size: 14px;
@@ -164,20 +176,6 @@ body {
 /* Shown once the six steps are done — the workbook is the half of the product
    this page can't demonstrate, so say so rather than leaving the user on a
    finished tour with nowhere obvious to go. */
-.cta__prompt {
-  margin: 0 0 var(--fla-gutter);
-  padding: var(--fla-sm) var(--fla-gutter);
-  border-left: 3px solid var(--fla-accent-line);
-  background: var(--fla-accent-tint);
-  border-radius: 0 var(--fla-r-sm) var(--fla-r-sm) 0;
-  font-size: 14px;
-  color: var(--fla-ink);
-}
-
-.cta__prompt[hidden] {
-  display: none;
-}
-
 .cta__quiet {
   padding: 10px 14px;
   border: none;
@@ -233,6 +231,67 @@ body {
 
 .cta__secondary[hidden] {
   display: none;
+}
+
+/* The end-of-tutorial nudge (welcome.js#pulse) — a scrim was ruled out here
+   (it would make isTourActive() true and stop the demo bubble dismissing on
+   click), so this is what "make it pop" became instead: a ring that draws the
+   eye to the thing itself rather than the screen owning it. Applied to any
+   element, so it has to keep its own layout assumptions to a minimum. */
+.pulse-ring {
+  position: relative;
+}
+
+.pulse-ring::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  border: 2px solid var(--fla-accent);
+  animation: fla-pulse-ring 1.6s ease-out infinite;
+  pointer-events: none;
+}
+
+/* `inherit` picks up whatever the pulsed element itself has; the chapters
+   section has no radius of its own, and a hard-cornered ring around a grid of
+   rounded cards reads as a mistake. */
+#chapters.pulse-ring {
+  border-radius: var(--fla-r);
+}
+
+/* A full-width section scales visibly further than a button at the same
+   factor, so the ring grows by a flat amount instead. */
+#chapters.pulse-ring::after {
+  animation-name: fla-pulse-ring-wide;
+}
+
+@keyframes fla-pulse-ring {
+  from {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  to {
+    transform: scale(1.15);
+    opacity: 0;
+  }
+}
+
+@keyframes fla-pulse-ring-wide {
+  from {
+    inset: -4px;
+    opacity: 0.8;
+  }
+  to {
+    inset: -14px;
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse-ring::after {
+    animation: none;
+    opacity: 0;
+  }
 }
 
 /* -----------------------------
@@ -304,10 +363,40 @@ body {
   color: var(--fla-ink-muted);
 }
 
-/* A chapter the user has already taken. */
-.chapter[data-seen="1"] .chapter__name::after {
-  content: " ✓";
-  color: var(--fla-accent);
+/* A chapter the user has already taken — dimmed rather than ticked. A tick
+   adds a mark to read; receding is the same signal with nothing to read, and
+   it leaves the unvisited tiles as the only bright things in the grid. */
+.chapter[data-seen="1"] {
+  background: var(--fla-sunken);
+  border-color: var(--fla-line);
+}
+
+.chapter[data-seen="1"] .chapter__name {
+  color: var(--fla-ink-muted);
+}
+
+.chapter[data-seen="1"] .chapter__desc {
+  color: var(--fla-ink-faint);
+}
+
+.chapter[data-seen="1"] .chapter__icon {
+  /* Greyed, not faded — opacity on top of a tinted surface is what the
+     contrast guard exists to stop (see check-contrast.js). */
+  filter: grayscale(1);
+}
+
+/* Still fully reachable: a taken chapter can be replayed, so hover restores it. */
+.chapter[data-seen="1"]:hover {
+  background: var(--fla-card);
+  border-color: var(--fla-ink-faint);
+}
+
+.chapter[data-seen="1"]:hover .chapter__name {
+  color: var(--fla-heading);
+}
+
+.chapter[data-seen="1"]:hover .chapter__icon {
+  filter: none;
 }
 
 /* -----------------------------
@@ -341,4 +430,23 @@ body {
 .foot__status[data-ok="1"] {
   background: var(--fla-accent-tint);
   color: var(--fla-accent);
+}
+
+.foot__colophon {
+  margin: var(--fla-gutter) 0 0;
+  padding-top: var(--fla-gutter);
+  border-top: 1px solid var(--fla-line);
+  font-size: 12px;
+  color: var(--fla-ink-faint);
+}
+
+.foot__link {
+  color: var(--fla-ink-muted);
+  text-decoration: none;
+  border-bottom: 1px solid var(--fla-line-strong);
+}
+
+.foot__link:hover {
+  color: var(--fla-ink);
+  border-bottom-color: var(--fla-ink);
 }

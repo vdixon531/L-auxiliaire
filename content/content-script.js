@@ -415,11 +415,18 @@ function getContextSentence(range) {
 // Selection handling
 // -----------------------------
 
+// There is nothing to translate in "2026", "12,5 %" or "(3)". A selection with
+// no letter in it at all is a number, a price, a footnote marker or a stray
+// drag — never a word — and translating one produces a bubble that echoes the
+// digits back. Clicking a number was already inert (getWordAtPoint's word class
+// is letters only); this is the selection path catching up.
+const LETTER_RE = /\p{L}/u;
+
 function getSelectionText() {
   const sel = window.getSelection();
   if (!sel || sel.rangeCount === 0) return null;
   const text = sel.toString().trim();
-  if (!text) return null;
+  if (!text || !LETTER_RE.test(text)) return null;
   const range = sel.getRangeAt(0);
   const rect = range.getBoundingClientRect();
   return { text, rect, range };

@@ -293,3 +293,40 @@ section button + .hint {
   margin-bottom: var(--fla-sm);
   font-size: 11px;
 }
+
+/* -----------------------------
+   Colophon (lib/settings-panel.js#wireAboutLinks)
+   Quiet by design — it's an attribution and two reference links, not a control.
+   ----------------------------- */
+
+.about {
+  margin-top: var(--fla-lg);
+  padding-top: var(--fla-gutter);
+  border-top: 1px solid var(--fla-line);
+  text-align: center;
+}
+
+.about__made {
+  margin: 0;
+  font-size: 12px;
+  color: var(--fla-ink-faint);
+}
+
+.about__links {
+  margin: var(--fla-xs) 0 0;
+  display: flex;
+  justify-content: center;
+  gap: var(--fla-gutter);
+  font-size: 12px;
+}
+
+.about__links a {
+  color: var(--fla-ink-muted);
+  text-decoration: none;
+  border-bottom: 1px solid var(--fla-line-strong);
+}
+
+.about__links a:hover {
+  color: var(--fla-ink);
+  border-bottom-color: var(--fla-ink);
+}

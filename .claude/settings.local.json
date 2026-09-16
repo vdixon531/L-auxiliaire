@@ -21,10 +21,12 @@
       "Bash(node --check /tmp/conj.mjs)",
       "Bash(node --check /tmp/lex.mjs)",
       "Bash(node scripts/check-refs.js)",
-      "Bash(cd \"C:/Users/Valmik/Documents/L'auxiliaire\" && sed -n '/^chrome.storage.onChanged.addListener/,/^}\\);/p' sidepanel/sidepanel.js && echo \"=== does anything watch vocab? ===\" && grep -n \"changes.vocab\" sidepanel/sidepanel.js || echo \"  no — the panel never reacts to a save from elsewhere\")"
+      "Bash(cd \"C:/Users/Valmik/Documents/L'auxiliaire\" && sed -n '/^chrome.storage.onChanged.addListener/,/^}\\);/p' sidepanel/sidepanel.js && echo \"=== does anything watch vocab? ===\" && grep -n \"changes.vocab\" sidepanel/sidepanel.js || echo \"  no — the panel never reacts to a save from elsewhere\")",
+      "Bash(cd \"c:/Users/Valmik/Documents/L'auxiliaire\" && sed -n '/<section id=\"practice\"/,/<\\\\/section>/p' sidepanel/sidepanel.html)"
     ],
     "additionalDirectories": [
-      "C:\\Users\\Valmik\\Documents\\L'auxiliaire\\background"
+      "C:\\Users\\Valmik\\Documents\\L'auxiliaire\\background",
+      "c:\\Users\\Valmik\\Documents\\L'auxiliaire\\sidepanel"
     ]
   }
 }

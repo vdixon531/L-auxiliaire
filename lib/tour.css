@@ -59,13 +59,20 @@
 }
 
 /* A centred step has nothing to point at, so the scrim needs painting by
-   something — the callout's own ::before covers the viewport instead. */
-.fla-tour--centred .fla-tour__callout::before {
+   something — the ROOT's ::before covers the viewport instead.
+   It must hang off the root, not off the callout. `.fla-tour__callout` is
+   `position: fixed` with `z-index: 1`, so it forms a stacking context, and a
+   `z-index: -1` child of a stacking context does NOT paint behind its
+   parent's background — the parent's background paints first, then negative
+   children on top of it. Painting the scrim there tinted the callout's own
+   background with 62% of the scrim colour, so every centred step rendered
+   visibly darker than every anchored one. Here it's a sibling behind the
+   callout (which keeps `z-index: 1`), so it dims the page and nothing else. */
+.fla-tour--centred::before {
   content: "";
   position: fixed;
   inset: 0;
   background: var(--fla-tour-scrim);
-  z-index: -1;
 }
 
 .fla-tour__callout {
@@ -249,6 +256,53 @@
 
 .fla-tour__skip:hover {
   color: var(--fla-ink) !important;
+}
+
+/* -----------------------------
+   Transient hint (lib/tour.js#showHint)
+   The callout on its own: no cutout, no blocker, no footer, and the page stays
+   fully live behind it. It borrows .fla-tour__callout wholesale so a hint and a
+   step are visibly the same component.
+   ----------------------------- */
+
+.fla-tour--hint .fla-tour__callout {
+  /* Room for the close button in the top-right corner. */
+  padding-right: calc(var(--fla-md) + 16px);
+  /* A hint has no scrim to set it apart from the page behind it (a step's
+     does that job) — so it needs to look less like ordinary page furniture
+     some other way: an accent border and a heavier shadow than the tour's
+     own callout carries by default. */
+  border-color: var(--fla-accent-line);
+  box-shadow: var(--fla-shadow), 0 0 0 1px var(--fla-accent-line);
+}
+
+/* A centred hint has nothing to point at, but it must NOT paint the scrim the
+   centred tour step does — a hint never takes the screen. */
+.fla-tour--hint.fla-tour--centred::before {
+  content: none;
+}
+
+.fla-tour__hint-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: var(--fla-r-sm);
+  background: transparent;
+  color: var(--fla-ink-muted);
+  font-family: var(--fla-sans);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.fla-tour__hint-close:hover {
+  background: var(--fla-raised);
+  color: var(--fla-ink);
 }
 
 /* Arrow — a rotated square tucked under the callout's edge, so it inherits the
