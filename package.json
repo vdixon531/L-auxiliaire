@@ -1,0 +1,27 @@
+{
+  "name": "lauxiliaire",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Chrome extension for reading French in place — on-device translation, contextual vocabulary, conjugation, PDFs and spoken practice",
+  "license": "GPL-2.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vdixon531/L-auxiliaire.git"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "comments": {
+    "no-type-module": "Deliberately no \"type\": \"module\". The extension's own code is ES modules, but scripts/ is CommonJS (require). Flipping this field would break the build scripts; scripts/check-syntax.js handles the two dialects instead.",
+    "no-dependencies": "There is no build step and no runtime dependency. The repo IS the extension — `npm install` is not needed to load it unpacked. These scripts are hand-run helpers and guards."
+  },
+  "scripts": {
+    "check": "npm run check:syntax && npm run check:refs && npm run check:contrast",
+    "check:syntax": "node scripts/check-syntax.js",
+    "check:refs": "node scripts/check-refs.js",
+    "check:contrast": "node scripts/check-contrast.js",
+    "build:verbs": "node scripts/build-verbiste.js",
+    "build:lexicon": "node scripts/build-lexicon.js",
+    "build:icons": "node scripts/generate-icons.js"
+  }
+}

@@ -1,180 +1,215 @@
 # L'auxiliaire
 
-A Chrome extension for learning French while you browse. Translate on hover or select, hear it spoken, save words with their context sentence to a per-page workbook, view verb conjugations, and review with spaced repetition.
+A Chrome extension for reading real French — news, essays, PDFs — without
+leaving the page to look things up.
 
-## Feature summary
+Click a word for its translation. Drag across a passage to translate the whole
+thing. Save what's worth keeping, with the sentence you met it in. Look up any
+verb's full conjugation. Practise a dialogue out loud and get scored on
+pronunciation.
 
-**Core translation**
-- Click any word to translate it — always on, no toggle needed
-- Hover mode (optional): automatic translation after a short pause, on top of click
-- Selection popup: highlight a phrase or sentence to translate it, with play buttons for both languages (French always available)
-- All translations run on-device via Chrome's built-in Translator API (Chrome 138+) — no account, no API key, no network round-trip
+**Everything runs on your own machine.** Translation uses Chrome's built-in
+on-device `Translator` API — no account, no API key, no server. The one
+exception is speech recognition in the Practice tab; see
+[Privacy](#privacy) below.
 
-**Vocabulary workbook**
-- Save any word or phrase — automatically captures the surrounding sentence as context
-- Per-URL workbooks (each article gets its own list) plus an "All" aggregate view
-- Search, CSV export, Anki export
-- For PDFs: workbook keyed by file content, so downloaded copies share vocab
+> **Status: working, but pre-release.** Loaded unpacked and used daily by its
+> author. Not on the Chrome Web Store. Spaced repetition is designed and has
+> its storage schema in place, but the review UI isn't built yet — see
+> [`TODO.md`](TODO.md).
 
-**Verb conjugations**
-- Auto-detect infinitives (and conjugated forms via lemmatization)
-- Full conjugation table from bundled Verbiste dataset (~7000 verbs)
-- Save whole tables to a separate verbs workbook
+---
 
-**Reading aids (Phase 2)**
-- Gender + plural color coding — customizable colors for masculine, feminine, plural nouns
-- Frequency dimming — common words (top 1000) fade so rare words stand out
-- Cognate highlighting — obvious English-French cognates get a subtle underline
-- Reading level estimate — CEFR badge per page based on your known vocabulary
+## Install
 
-**Retention (Phase 3)**
-- Spaced repetition (Leitner box system) — review words right before you'd forget them
-- Three review formats: French → English recognition, English → French typed (fuzzy-matched with accent tolerance), audio → meaning
-- Sentence mining mode — one click saves an entire sentence plus every unknown word inside it
-- Light gamification (opt-in): day streak, words reviewed today, no notifications
+Requires **Chrome 138 or newer** — the on-device `Translator` API doesn't exist
+before that, and isn't available on mobile Chrome.
 
-**PDF support (Phase 4)**
-- PDF viewer is Mozilla's own PDF.js reference viewer (vendored, not hand-
-  built) — proper continuous scroll, zoom, find, and print all work because
-  they're upstream's proven code, not a custom re-implementation
-- Same translate on click/hover/select as web pages, layered on top via a
-  small bridge script
-- Per-PDF workbook keyed by content hash
-- Highlighting uses PDF.js's own native highlight annotation tool, not a
-  custom feature
-- Manual-open only for now: a file picker in the popup, or a "reopen this PDF"
-  button when Chrome's own viewer is already showing one — not an automatic
-  takeover of every PDF you encounter (MV3 extensions can no longer silently
-  register as the default PDF handler; auto-interception would need
-  `declarativeNetRequest` + broad host permissions, deliberately deferred)
+```bash
+git clone https://github.com/vdixon531/L-auxiliaire.git
+```
 
-**Conversation practice (Phase 5)**
-- Select a dialogue on any page (🎙 Practice on the selection bubble, or the
-  popup's "Practice selected text") or paste one into the Practice tab
-- All-French dialogues: the app reads its lines aloud, you read yours into the
-  mic — speech checked word-by-word against the text
-- Mixed French/English dialogues: the app reads the French lines; you say each
-  English line in French, checked (leniently) against a reference translation
-- All-English dialogues: every line is yours to say in French, with the model
-  answer revealed only after your attempt
-- A live mic level meter while listening, and words that light up as they're
-  recognised; the turn ends when you stop talking, not at your first word
-- Scored on pronunciation, not spelling — "parler"/"parlé"/"parlez" all count
-  as the same thing said out loud
-- Wrong turns get a color-coded word diff with listen (normal or slow) / retry
-  / skip; sessions end with an overall score, a repeated-mistakes list, and
-  playback of every line
-- Requires a one-time microphone grant (a page the extension opens for you);
-  speech recognition is Chrome-only
+1. Open `chrome://extensions`
+2. Enable **Developer mode**
+3. **Load unpacked** → select the cloned folder
 
-**Stretch goals**
-- YouTube subtitle overlay with clickable words
-- Wiktionary definitions in save flow
-- Notion sync
+No build step. No `npm install` needed to *run* it — the repo is the extension.
 
-## Setup
+The first translation of a language pair downloads Chrome's on-device language
+pack once (the bubble says so while it happens). Everything after that is
+instant and offline.
 
-1. Clone/open in VS Code.
-2. Make sure you're on **Chrome 138 or newer** — translation runs on Chrome's
-   built-in on-device Translator API, which doesn't exist on older versions
-   or on mobile Chrome. No signup, no API key.
-3. Load the extension:
-   - Open `chrome://extensions`
-   - Enable **Developer mode**
-   - Click **Load unpacked** and select this folder
-4. First translation of a new language pair (fr→en or en→fr) downloads that
-   on-device language pack once — the bubble shows "Downloading language
-   pack (one-time)…" while that happens.
+---
 
-Previously this project used DeepL/Google Cloud Translate and required an API
-key; that's gone. (Also worth knowing regardless: DeepL discontinued its free
-API tier for new signups as of mid-2026, so that path is no longer viable
-even if you wanted it back.)
+## What it does
+
+### Reading
+- **Click any word** for an inline translation. Always on — no mode to enable.
+- **Drag across a phrase** and the whole selection is translated. At four
+  lines or sentences it shows a preview and a 🌐 Translate button instead, on
+  the theory that selecting that much usually means you want to practise it,
+  not read a wall of English.
+- **Hover-to-translate** is an optional extra on top of clicking (`Alt+T`).
+- **Gender colour-coding** tints every noun by grammatical gender. Off by
+  default; colours and per-category switches live in Settings.
+- **Reading level** — a rough CEFR estimate (A1–C2) for the current page,
+  from word-frequency banding.
+
+### Vocabulary
+- Every saved word keeps **the sentence you met it in** — never a bare pair.
+- Words file themselves into **workbooks**: one per page, one per PDF, plus
+  hand-made collections and an "All Words" view across everything.
+- Conjugated forms collapse onto their infinitive, so *parle* / *parlé* /
+  *parlez* are one card to revise rather than three.
+- Type words in by hand, rename and reorder workbooks, **export** to CSV or an
+  Anki deck.
+
+### Conjugation
+- Any of ~7,000 French verbs, in full, offline. Inflected forms resolve to
+  their infinitive, so you can look up a verb as you met it.
+
+### PDFs
+- Opens through Mozilla's own PDF.js reference viewer, vendored whole — so
+  continuous scroll, zoom, find, print and highlighting are upstream's proven
+  code rather than a re-implementation.
+- Same click / drag / save behaviour as a web page.
+- A PDF's workbook is keyed by **content hash**, so the same file keeps one
+  workbook wherever you opened it from.
+- **Manual-open only**, by choice: a file picker in the popup, or "reopen this
+  PDF" when Chrome's own viewer is showing one. Auto-intercepting every PDF
+  would need `declarativeNetRequest` plus broad host permissions.
+
+### Speaking practice
+- Select a dialogue (🎙 on the bubble) or paste one into the Practice tab.
+- The app reads one side aloud, you speak the other. All-English text becomes
+  a translation drill; a passage with no dialogue markers becomes a read-aloud.
+- The mic opens on its own after a short countdown — no button to press — and
+  the turn ends when you stop talking.
+- **Scored on pronunciation, not spelling**: *parler* / *parlé* / *parlez*
+  sound identical and are treated as such.
+- Scores are held back until the end of the session, so you keep your flow. A
+  line that doesn't land at all is replayed once with the French shown.
+- Needs a one-time microphone grant. Chrome-only.
+
+### Getting oriented
+- A guided tutorial runs on first install and is replayable from Settings.
+- In-extension [FAQ](pages/faq.html) and [privacy](pages/privacy.html) pages.
+- Light / dark / follow-system, applied across every surface at once.
 
 ## Keyboard shortcuts
 
-- `Alt+T` — toggle hover-to-translate mode
-- `Alt+R` — read selection aloud in French
-- `Alt+S` — save selection to vocab
+| Shortcut | Action |
+|---|---|
+| `Alt+T` | Toggle hover-to-translate |
+| `Alt+R` | Read the selection aloud |
+| `Alt+S` | Translate and save the selection |
 
-## Getting bundled data ready
+Rebindable at `chrome://extensions/shortcuts`.
 
-The MVP ships with placeholder data. Run these conversions before building out Phase 1:
+---
 
-1. **Verbiste conjugation data** (~7000 verbs) — done
-   - Source XML lives in `scripts/verbiste-source/` (`conjugations-fr.xml`, `verbs-fr.xml`), a mirror of Pierre Sarrazin's Verbiste data maintained at https://github.com/bretttolbert/verbecc (GPL-2.0-or-later; original at https://perso.b2b2c.ca/~sarrazip/dev/verbiste.html).
-   - Regenerate with `node scripts/build-verbiste.js` (7011 verbs, 146 conjugation templates) — writes sharded output to `data/verbs/<letter>.json` and `data/lemmas/<letter>.json`, not a single file, so a lookup only loads ~1/26th of the dataset instead of all of it.
+## Privacy
 
-2. **Lexique.org lexicon** (~30k words — POS, gender, number, frequency) — done
-   - Source TSV lives at `data/Lexique4/Lexique4.tsv` (download from http://www.lexique.org/, not checked in).
-   - Regenerate with `node scripts/build-lexicon.js` — writes sharded output to `data/lexicon/<letter>.json`, same scheme as the verb data above.
+No account, no analytics, no telemetry, no server. Everything the extension
+remembers lives in `chrome.storage.local` on your machine and is deleted when
+you uninstall it.
 
-3. **Cognate list** (~360 hand-picked entries) — done
-   - `data/cognates.json` is hand-curated, not generated — there's no reliable way to tell true cognates from false friends (`actuellement`/actually, `librairie`/library, ...) using frequency or POS data alone.
+**One thing is not on-device:** the Practice tab uses Chrome's Web Speech API,
+which transcribes audio through a Google service. Every other feature works
+with no network at all. Full detail in [`pages/privacy.html`](pages/privacy.html).
+
+---
+
+## Repository layout
+
+```
+manifest.json            MV3 manifest — permissions, commands, entry points
+
+background/              Service worker: owns storage and all external calls
+  service-worker.js        message router, storage writes, alarms
+  offscreen.html/.js       runs Translator.* (needs a window context a
+                           service worker, being a Web Worker, can't provide)
+  conjugation.js           Verbiste lookup + lemmatisation (sharded)
+  lexicon.js               POS / gender / frequency lookup (sharded)
+  detect-lang.js           FR/EN detection, context-sentence aware
+  cache.js                 translation cache, 7d TTL, periodic eviction
+  srs.js                   Leitner box→interval table (review flow not built)
+
+content/                 Injected into every page
+  content-script.js        click / hover / selection translate, the bubble
+  annotator.js             gender colouring, CEFR estimate, live config
+  popup.css                bubble + annotation styles, all .fla-* namespaced
+
+popup/                   Toolbar popup — settings, PDF entry points
+sidepanel/               The workbook: Vocabulary / Conjugation / Practice / Settings
+welcome/                 First-run tutorial (a real reproduction of the in-page UI)
+permission/              One-time mic grant page
+pages/                   Static FAQ and privacy pages
+
+pdf-viewer/
+  bridge.js                layers translate/save/handoff onto the vendored viewer
+  vendor/                  Mozilla's full PDF.js viewer — see vendor/README.txt
+
+lib/                     Shared ES modules (extension pages only, not content scripts)
+  tour.js/.css             spotlight tour engine used by welcome + side panel
+  practice-panel.js        conversation-practice state machine
+  settings-panel.js        the settings UI shared by popup and side panel
+  theme.css, theme-mode.js design tokens and light/dark switching
+  fuzzy-match.js           French phonetic folding + pronunciation scorer
+  normalize-url.js         canonicalises URLs used as vocab keys
+  pdf-handoff.js           IndexedDB handoff of PDF bytes to the viewer
+  flip.js/.css             card-flip animation for vocab entries
+
+data/                    Bundled lookup data (see NOTICE.md for provenance)
+  verbs/, lemmas/          conjugations + inflected→infinitive, sharded a–z
+  lexicon/                 surface form → {lemma, pos, gender, number, freqRank}
+  cognates.json            hand-curated FR→EN cognate map
+  Lexique4/                source TSV for the lexicon build
+
+scripts/                 Build and guard scripts (Node, run by hand)
+fonts/                   Bundled webfonts — see fonts/README.txt
+icons/
+```
+
+## Architecture notes
+
+[`CLAUDE.md`](CLAUDE.md) is the real architecture document — conventions, the
+message contract, the storage schema, the MV3 traps, and the reasoning behind
+decisions that look odd until you know why. It's written as instructions for an
+AI agent working in this repo, but it's the most complete and most current
+description of how the thing fits together, and it's maintained as the code
+changes. **Read it before making a non-trivial change.**
+
+Two things worth knowing up front:
+
+- **The service worker owns state and all external calls.** Content scripts and
+  the side panel are UI only.
+- **There's no build step and no framework.** Vanilla ES modules, loaded
+  unpacked. `scripts/` holds Node helpers you run by hand, not a pipeline.
+
+## Development
+
+```bash
+npm run check          # all guards: syntax, undefined refs, contrast
+```
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full workflow, how to
+regenerate the bundled data, and what the guard scripts actually check.
 
 ## Roadmap
 
-See `CLAUDE.md` for the detailed weekend-by-weekend build order and all technical decisions.
+Open items and the decision log live in [`TODO.md`](TODO.md).
 
-- **Weekend 1**: Core MVP — translate, save with context, conjugation, click/hover translate, cache
-- **Weekend 2**: Reading aids — color coding, frequency dimming, cognates, CEFR
-- **Weekend 3**: Retention — spaced repetition, sentence mining, gamification
-- **Weekend 4**: PDF support via PDF.js
+The near-term one is **spaced repetition** — `cards` already carries the Leitner
+fields (`box`, `dueAt`, `correctStreak`), `background/srs.js` has the interval
+table, and `GET_DUE_REVIEWS` / `RECORD_REVIEW` are specified in the message
+contract. What's missing is the review UI and the handlers behind those two
+messages.
 
-## Architecture
+## Licence
 
-```
-manifest.json             — MV3 manifest, permissions, commands
-background/
-  service-worker.js       — storage, message router, spawns the offscreen doc
-  offscreen.html/.js      — runs Translator.* (needs a window context the
-                            service worker, a Web Worker, can't provide)
-  conjugation.js          — Verbiste lookup + lemmatization
-  detect-lang.js          — FR/EN detection (context-sentence aware)
-  lexicon.js              — POS/gender/frequency lookup (shard-cache, mirrors conjugation.js)
-  srs.js                  — Leitner box→interval table (full review flow: Phase 3)
-  cache.js                — Translation cache
-content/
-  content-script.js       — Selection, click/hover translate, bubble
-  annotator.js            — Color coding, dimming, cognate underlines, CEFR estimate
-  context.js              — Sentence extraction from DOM
-  popup.css               — Floating bubble + annotation styles (.fla-* namespaced)
-popup/                    — Toolbar icon popup — settings, color pickers, PDF entry points
-sidepanel/                — Vocab / Conjugation / Review / Progress tabs
-pdf-viewer/
-  bridge.js               — Layers translate/save/conjugate + handoff-loading
-                            onto the vendored viewer (manual-open only, see
-                            CLAUDE.md); ports content-script.js's interaction
-                            logic rather than sharing it (different script
-                            mechanisms)
-  vendor/                 — Mozilla's full PDF.js reference viewer, vendored
-                            whole (see vendor/README.txt) — not a custom-built
-                            viewer; two small edits to vendor/web/viewer.html
-                            wire bridge.js in
-data/
-  verbs/<letter>.json     — conjugation tables, sharded by infinitive's first letter
-  lemmas/<letter>.json    — conjugated form -> infinitive, sharded by its first letter
-  lexicon/<letter>.json   — surface form -> {lemma,pos,gender,number,freqRank}, same sharding
-  cognates.json           — hand-curated English-French cognate map
-lib/
-  fuzzy-match.js          — Levenshtein similarity + LCS word alignment, plus
-                            French phonetic folding and the pronunciation
-                            scorer conversation practice grades attempts with
-  normalize-url.js        — Canonicalizes URLs used as vocab keys
-  practice-panel.js       — Conversation-practice session state machine
-                            (side panel Practice tab)
-  pdf-handoff.js          — IndexedDB handoff of picked/fetched PDF bytes to pdf-viewer/
-permission/
-  grant-mic.html/.js      — One-time mic grant page (the side panel can't show
-                            Chrome's mic prompt itself)
-```
+**GPL-2.0-or-later** — see [`LICENSE`](LICENSE).
 
-## Storage
-
-All data lives in `chrome.storage.local`. No cloud sync yet. See `CLAUDE.md` for the storage schema.
-
-## Notes
-
-- Manifest V3 — no inline scripts, service worker uses ES modules
-- Web Speech API for TTS (works everywhere) and STT (Chrome-only)
-- Bundle size target: under ~10MB gzipped total
+This is a consequence of the bundled Verbiste conjugation data, which is
+GPL-2.0-or-later and which the extension ships in derived form. Third-party
+components and their licences are listed in [`NOTICE.md`](NOTICE.md).

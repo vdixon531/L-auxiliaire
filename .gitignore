@@ -9,3 +9,15 @@ node_modules/
 # each). Extension ships data/lexicon/ (generated), never this raw folder.
 data/Lexique4/*
 !data/Lexique4/Lexique4.tsv
+
+# The .tsv above IS committed (32MB) so `npm run build:lexicon` works from a
+# fresh clone. If Lexique's redistribution terms turn out to forbid that (see
+# NOTICE.md), drop the negation above and uncomment the line below — the
+# extension itself is unaffected, since it loads the generated data/lexicon/
+# shards and never the raw TSV.
+# data/Lexique4/Lexique4.tsv
+
+# Claude Code local settings — machine-specific absolute paths and personal
+# permission grants. The shared .claude/settings.json (if any) is fine to
+# commit; anything *.local.json is not.
+.claude/settings.local.json
