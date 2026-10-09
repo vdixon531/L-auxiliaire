@@ -1006,6 +1006,96 @@ body {
   padding: 2px 4px;
 }
 
+/* Who is speaking. The role icon answers "am I up?"; this answers "who is
+   this?" — both are needed once a dialogue has a named cast. */
+.pline-speaker {
+  flex: 0 0 auto;
+  font-family: var(--fla-sans);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--fla-ink-faint);
+  max-width: 9ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A stage direction — "(You return)". Scene context, never spoken, never
+   scored, so it carries no role icon and no language chip. */
+.pline--note {
+  font-style: italic;
+  color: var(--fla-ink-faint);
+  font-size: 13px;
+  padding-left: var(--fla-md);
+}
+
+/* The speaker roster: who in this dialogue is you. Assignment is per speaker,
+   not per line (see the toggle-speaker handler). */
+.proster {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: var(--fla-sm);
+}
+
+.proster-chip {
+  padding: 5px 10px;
+  border: 1px solid var(--fla-line-strong);
+  border-radius: 999px;
+  background: var(--fla-card);
+  color: var(--fla-ink-muted);
+  font-family: var(--fla-sans);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.proster-chip:hover {
+  border-color: var(--fla-ink-faint);
+  color: var(--fla-ink);
+}
+
+/* The speaker you're practising as. */
+.proster-chip.is-user {
+  background: var(--fla-primary);
+  border-color: var(--fla-primary);
+  color: var(--fla-on-primary);
+  font-weight: 500;
+}
+
+/* Nobody has been chosen yet and Begin is disabled until one is. Obvious
+   without being a modal — the roster is already the thing to look at. */
+.proster--needs-pick .proster-chip {
+  border-color: var(--fla-accent);
+  animation: fla-roster-nudge 1.6s ease-in-out infinite;
+}
+
+@keyframes fla-roster-nudge {
+  0%, 100% { box-shadow: 0 0 0 0 var(--fla-accent-tint); }
+  50% { box-shadow: 0 0 0 4px var(--fla-accent-tint); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proster--needs-pick .proster-chip {
+    animation: none;
+  }
+}
+
+/* Speaker picker inside the line editor — who says this line, as opposed to
+   who you are. */
+.pline-speaker-select {
+  flex: 0 0 auto;
+  max-width: 10ch;
+  padding: 3px 4px;
+  border: 1px solid var(--fla-line-strong);
+  border-radius: 3px;
+  background: var(--fla-card);
+  color: var(--fla-ink-muted);
+  font-family: var(--fla-sans);
+  font-size: 11px;
+}
+
 /* Progress without a verdict — no number, no colour. Scores stay withheld
    for the summary; this just says a line is behind you. */
 .pline-check {

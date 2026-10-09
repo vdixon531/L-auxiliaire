@@ -379,6 +379,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           sendResponse(result);
           break;
         }
+        // Language only, no translation. detectLang() is a pure local
+        // heuristic with no network and no Translator API, so this is free —
+        // it exists because the practice panel often needs to know a line's
+        // language WITHOUT translating it (a dialogue that ships its own
+        // parenthetical translation needs no machine one, so asking TRANSLATE
+        // purely to read back sourceLang would be a round-trip for nothing).
+        case "DETECT_LANG": {
+          sendResponse({ lang: detectLang(msg.text || "", msg.contextSentence || "") });
+          break;
+        }
         case "SAVE_WORD": {
           // Respect an explicit url the caller already computed (pdf-viewer/
           // viewer.js sends its own pdf:<sha256hex> content-hash key, since
