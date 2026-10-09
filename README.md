@@ -164,16 +164,24 @@ lib/                     Shared ES modules (extension pages only, not content sc
   pdf-handoff.js           IndexedDB handoff of PDF bytes to the viewer
   flip.js/.css             card-flip animation for vocab entries
 
-data/                    Bundled lookup data (see NOTICE.md for provenance)
+data/                    Generated lookup data — everything here ships
   verbs/, lemmas/          conjugations + inflected→infinitive, sharded a–z
   lexicon/                 surface form → {lemma, pos, gender, number, freqRank}
   cognates.json            hand-curated FR→EN cognate map
-  Lexique4/                source TSV for the lexicon build
 
-scripts/                 Build and guard scripts (Node, run by hand)
 fonts/                   Bundled webfonts — see fonts/README.txt
 icons/
+
+scripts/                 Dev only — never loaded by the browser
+  build-*.js, check-*.js   data generation and the guards
+  verbiste-source/         raw Verbiste XML      → data/verbs, data/lemmas
+  lexique-source/          raw Lexique TSV       → data/lexicon
 ```
+
+Chrome loads the *entire* extension directory, so the split matters: `data/`
+holds only what ships, and raw source data lives under `scripts/` beside the
+build script that consumes it. See [`NOTICE.md`](NOTICE.md) for provenance and
+licences.
 
 ## Architecture notes
 

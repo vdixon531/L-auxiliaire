@@ -5,7 +5,7 @@
 // Sharded by the normalized (lowercased, accent-stripped) first letter of the
 // key, same scheme as data/verbs/ and data/lemmas/ (see build-verbiste.js).
 //
-// Source data: data/Lexique4/Lexique4.tsv (189,864 rows, one per distinct
+// Source data: scripts/lexique-source/Lexique4.tsv (189,864 rows, one per distinct
 // (spelling, grammatical reading) pair — e.g. "ferme" appears as VER/ADV/ADJ/
 // NOM in four separate rows). Columns used (0-indexed):
 //   0 Mot (surface form), 3 Lemme, 4 Cgram (NOM/VER/ADJ/ADV/...),
@@ -31,7 +31,7 @@ const fs = require("fs");
 const path = require("path");
 const { normalize, shardKeyOf, writeSharded } = require("./shard-writer.js");
 
-const SRC_PATH = path.join(__dirname, "..", "data", "Lexique4", "Lexique4.tsv");
+const SRC_PATH = path.join(__dirname, "lexique-source", "Lexique4.tsv");
 const OUT_DIR = path.join(__dirname, "..", "data", "lexicon");
 const TOP_N = 30000;
 

@@ -25,7 +25,7 @@ const path = require("path");
 const { execFileSync } = require("child_process");
 
 const ROOT = path.join(__dirname, "..");
-const SKIP_DIRS = new Set(["node_modules", ".git", "vendor", "Lexique4"]);
+const SKIP_DIRS = new Set(["node_modules", ".git", "vendor", "lexique-source"]);
 
 function walk(dir, out = []) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {

@@ -4,20 +4,13 @@ node_modules/
 .env
 .vscode/
 
-# Lexique.org raw download — only the .tsv is read by scripts/build-lexicon.js;
-# the .pdf/.xlsx are unused duplicate-format copies from the download (~37MB
-# each). Extension ships data/lexicon/ (generated), never this raw folder.
-data/Lexique4/*
-!data/Lexique4/Lexique4.tsv
-
-# The .tsv above IS committed (32MB) so `npm run build:lexicon` works from a
-# fresh clone. If Lexique's redistribution terms turn out to forbid that (see
-# NOTICE.md), drop the negation above and uncomment the line below — the
-# extension itself is unaffected, since it loads the generated data/lexicon/
-# shards and never the raw TSV.
-# data/Lexique4/Lexique4.tsv
-
-# Claude Code local settings — machine-specific absolute paths and personal
-# permission grants. The shared .claude/settings.json (if any) is fine to
-# commit; anything *.local.json is not.
+# Claude Code local settings — machine-specific paths and permission grants.
+# A shared .claude/settings.json would be fine to commit; *.local.json is not.
 .claude/settings.local.json
+
+# Lexique raw download. Only the .tsv is read (by scripts/build-lexicon.js) and
+# it is committed so `npm run build:lexicon` works from a clone. The .pdf and
+# .xlsx are the same database in unused formats, ~37MB each.
+scripts/lexique-source/*
+!scripts/lexique-source/Lexique4.tsv
+!scripts/lexique-source/README-Lexique.txt

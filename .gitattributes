@@ -19,4 +19,4 @@ pdf-viewer/vendor/** linguist-vendored
 data/verbs/*.json    linguist-generated
 data/lemmas/*.json   linguist-generated
 data/lexicon/*.json  linguist-generated
-data/Lexique4/*      linguist-generated
+scripts/lexique-source/* linguist-vendored

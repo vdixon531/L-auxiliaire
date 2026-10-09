@@ -116,13 +116,9 @@ Not scheduled. Recorded so the reasoning isn't re-derived from scratch.
 
 ## Housekeeping
 
-- [ ] **Confirm Lexique's redistribution terms.** `data/Lexique4/Lexique4.tsv`
-      (32MB) is committed so `npm run build:lexicon` works from a clone, but
-      its licence hasn't been verified against a primary source — the site is
-      HTTP-only. If redistribution isn't permitted, untrack it; `.gitignore`
-      has the rule ready, commented out, and the extension is unaffected
-      either way since it loads the generated `data/lexicon/` shards. See
-      [`NOTICE.md`](NOTICE.md).
 - [ ] **Decide whether to publish to the Chrome Web Store.** Store review will
       want a privacy justification for each permission; `pages/privacy.html`
-      already covers the substance.
+      already covers the substance. Note the packaged zip should exclude
+      `scripts/`, `docs`, `.github/` and the raw source data — Chrome loads
+      the whole directory, so only `manifest.json` and what it references
+      need to ship.
