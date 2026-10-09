@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "L'auxiliaire",
   "version": "0.1.0",
-  "description": "Hover-translate, save vocabulary, view conjugations, and practice pronunciation for French learning.",
+  "description": "Read French on any page or PDF. Click a word to translate it, save it with its sentence, check conjugations, practise aloud.",
 
   "permissions": [
     "storage",

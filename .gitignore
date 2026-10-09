@@ -1,5 +1,8 @@
 .DS_Store
 node_modules/
+
+# Store package output (npm run package)
+build/
 *.log
 .env
 .vscode/

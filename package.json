@@ -22,6 +22,7 @@
     "check:contrast": "node scripts/check-contrast.js",
     "build:verbs": "node scripts/build-verbiste.js",
     "build:lexicon": "node scripts/build-lexicon.js",
-    "build:icons": "node scripts/generate-icons.js"
+    "build:icons": "node scripts/generate-icons.js",
+    "package": "node scripts/package.js"
   }
 }
