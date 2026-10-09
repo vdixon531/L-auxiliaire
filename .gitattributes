@@ -1,0 +1,22 @@
+# Normalise line endings. The repo already stores LF throughout, so this is a
+# no-op for existing files — it's here so a contributor without core.autocrlf
+# set doesn't commit CRLF and produce a whole-file diff.
+* text=auto eol=lf
+
+# Binaries — never touch these.
+*.woff2 binary
+*.png   binary
+*.jpg   binary
+*.ico   binary
+*.wasm  binary
+*.pdf   binary
+*.bcmap binary
+
+# Vendored upstream and generated data: exclude from diffs and language stats
+# so GitHub reports this as a JS project rather than a PDF.js fork, and so a
+# `git diff` after re-vendoring isn't 285 files of noise.
+pdf-viewer/vendor/** linguist-vendored
+data/verbs/*.json    linguist-generated
+data/lemmas/*.json   linguist-generated
+data/lexicon/*.json  linguist-generated
+data/Lexique4/*      linguist-generated

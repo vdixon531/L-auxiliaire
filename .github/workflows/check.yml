@@ -1,0 +1,24 @@
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          # Deliberately no `cache: npm` and no install step: this project has
+          # zero dependencies and no lockfile, so `npm ci` would fail and
+          # caching would have nothing to cache. The guards are plain Node.
+          # See package.json's "comments" field.
+
+      - name: Guards (syntax, undefined refs, contrast)
+        run: npm run check

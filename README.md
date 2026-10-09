@@ -1,5 +1,9 @@
 # L'auxiliaire
 
+[![check](https://github.com/vdixon531/L-auxiliaire/actions/workflows/check.yml/badge.svg)](https://github.com/vdixon531/L-auxiliaire/actions/workflows/check.yml)
+[![licence: GPL-2.0-or-later](https://img.shields.io/badge/licence-GPL--2.0--or--later-blue)](LICENSE)
+[![Chrome 138+](https://img.shields.io/badge/Chrome-138%2B-brightgreen)](https://developer.chrome.com/docs/ai/translator-api)
+
 A Chrome extension for reading real French — news, essays, PDFs — without
 leaving the page to look things up.
 
