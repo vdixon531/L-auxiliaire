@@ -386,7 +386,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         // parenthetical translation needs no machine one, so asking TRANSLATE
         // purely to read back sourceLang would be a round-trip for nothing).
         case "DETECT_LANG": {
-          sendResponse({ lang: detectLang(msg.text || "", msg.contextSentence || "") });
+          sendResponse({
+            lang: detectLang(msg.text || "", msg.contextSentence || "", msg.defaultLang || "fr")
+          });
           break;
         }
         case "SAVE_WORD": {
