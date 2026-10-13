@@ -11,6 +11,7 @@ import { dueAtForBox } from "./srs.js";
 import { lookupWord, annotateWords } from "./lexicon.js";
 import { sweepStaleHandoffs } from "../lib/pdf-handoff.js";
 import { getTourState, markWelcomeOpened } from "../lib/tour.js";
+import { isExtensionEnabled, readExtensionEnabled, toggleExtensionEnabled } from "../lib/extension-enabled.js";
 
 const STORAGE_KEY_VOCAB = "vocab";
 const STORAGE_KEY_CARDS = "cards";
@@ -521,10 +522,62 @@ async function ensureHandoffSweepAlarm() {
 }
 
 // -----------------------------
+// Master switch (config.extensionEnabled) — toolbar badge
+// -----------------------------
+//
+// The switch is only worth having if its state is obvious without opening the
+// popup, so the toolbar icon carries a badge while it's off. Nothing else
+// about the action changes: the popup must stay reachable, since it's how the
+// switch gets turned back on.
+
+const BADGE_OFF_TEXT = "off";
+// --fla-warn from lib/theme.css's light ramp. A literal because this is a
+// chrome.action call, not CSS — there are no custom properties to read here.
+const BADGE_OFF_BG = "#812818";
+
+async function updateActionBadge(enabled) {
+  try {
+    await chrome.action.setBadgeText({ text: enabled ? "" : BADGE_OFF_TEXT });
+    await chrome.action.setBadgeBackgroundColor({ color: BADGE_OFF_BG });
+    await chrome.action.setTitle({
+      title: enabled ? "L'auxiliaire" : "L'auxiliaire — paused (Alt+L to resume)"
+    });
+  } catch (err) {
+    // Badge is a nicety; never let it take the worker's event handler down.
+    console.warn("[FLA service worker] badge update failed", err);
+  }
+}
+
+async function refreshActionBadge() {
+  updateActionBadge(await readExtensionEnabled());
+}
+
+// Badge text is browser-session state, not storage — a worker restart keeps it
+// but a browser restart doesn't, hence onStartup as well as onInstalled.
+chrome.runtime.onStartup.addListener(refreshActionBadge);
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local" || !changes[STORAGE_KEY_CONFIG]) return;
+  const before = isExtensionEnabled(changes[STORAGE_KEY_CONFIG].oldValue);
+  const after = isExtensionEnabled(changes[STORAGE_KEY_CONFIG].newValue);
+  if (before !== after) updateActionBadge(after);
+});
+
+// -----------------------------
 // Keyboard commands
 // -----------------------------
 
 chrome.commands.onCommand.addListener(async (command) => {
+  // Deliberately before the tab query, and not gated on it: the master switch
+  // is global, so it must work from a chrome:// page, the new-tab page or a
+  // window with nothing useful focused — exactly the moments someone reaches
+  // for it. Every tab's content script reacts via chrome.storage.onChanged,
+  // so there's no message to send either.
+  if (command === "toggle-extension") {
+    await toggleExtensionEnabled();
+    return;
+  }
+
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id) return;
 
@@ -577,6 +630,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   await migrateVocabToCards();
   ensureCacheEvictionAlarm();
   ensureHandoffSweepAlarm();
+  await refreshActionBadge();
   // Last: a failure here must never strand the migrations above.
   try {
     await maybeOpenWelcome(details?.reason);

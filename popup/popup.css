@@ -295,6 +295,32 @@ section button + .hint {
 }
 
 /* -----------------------------
+   Master switch (lib/settings-panel.js#syncDependentRows)
+   The one control that governs every other one here, so it gets the serif and
+   a line of its own above the settings it gates — a plain row among the
+   toggles would read as another toggle of equal weight.
+   ----------------------------- */
+
+.row--master {
+  padding: 2px 0 var(--fla-xs);
+  font-family: var(--fla-serif);
+  font-size: 15px;
+  color: var(--fla-heading);
+}
+
+.row--master input[type="checkbox"] {
+  width: 17px;
+  height: 17px;
+}
+
+/* The paused state. Terracotta ink on the ordinary surface — never a faded
+   grey, which is how a state that matters becomes a state nobody reads (see
+   CLAUDE.md on opacity and quiet text). */
+.hint--warn {
+  color: var(--fla-warn);
+}
+
+/* -----------------------------
    Colophon (lib/settings-panel.js#wireAboutLinks)
    Quiet by design — it's an attribution and two reference links, not a control.
    ----------------------------- */

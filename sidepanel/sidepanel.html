@@ -129,8 +129,19 @@
     </section>
 
     <section id="settings" class="view">
+      <section class="master">
+        <label class="row row--master">
+          <span>Enable L'auxiliaire</span>
+          <!-- Checked, and the hint pre-filled, so the first paint shows the
+               default state (absent means on) rather than flashing "off"
+               before the config read lands — initSettingsPanel() sets the
+               real value. -->
+          <input type="checkbox" id="extensionToggle" checked />
+        </label>
+        <p id="extensionState" class="hint">On — click any word, or select a phrase, to translate it.</p>
+      </section>
+
       <section class="toggles">
-        <p class="hint">Click any word, or select a phrase, to translate it.</p>
         <label class="row">
           <span>Hover-to-translate</span>
           <input type="checkbox" id="hoverToggle" />

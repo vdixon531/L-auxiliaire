@@ -95,6 +95,16 @@ instant and offline.
   line that doesn't land at all is replayed once with the French shown.
 - Needs a one-time microphone grant. Chrome-only.
 
+### Pausing it
+- **One switch at the top of Settings** (`Alt+L`, or the toggle in the popup
+  and the side panel) turns the extension off for ordinary browsing. Pages are
+  then left completely alone — no bubble, no click-to-translate, no coloured
+  words — and the toolbar icon shows an **off** badge so you can see at a
+  glance which way it's set.
+- Your workbook, the PDF viewer and everything you've saved stay available
+  while it's off: the switch stops the extension interrupting pages, it isn't
+  an uninstall.
+
 ### Getting oriented
 - A guided tutorial runs on first install and is replayable from Settings.
 - In-extension [FAQ](pages/faq.html) and [privacy](pages/privacy.html) pages.
@@ -104,6 +114,7 @@ instant and offline.
 
 | Shortcut | Action |
 |---|---|
+| `Alt+L` | Turn L'auxiliaire on or off |
 | `Alt+T` | Toggle hover-to-translate |
 | `Alt+R` | Read the selection aloud |
 | `Alt+S` | Translate and save the selection |

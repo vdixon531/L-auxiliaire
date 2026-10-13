@@ -65,8 +65,10 @@ function switchView(view) {
     initPracticePanel();
   }
   if (view === "settings") {
-    initSettingsPanel();
-    refreshReadingLevel();
+    // Awaited: initSettingsPanel() is what reads the master switch, and the
+    // reading level is blanked while the extension is off — asking for it
+    // first would race that answer and leave a stale level on screen.
+    initSettingsPanel().then(refreshReadingLevel);
     // The panel outlives tab switches and navigations, so the readout has to
     // follow them rather than answering once on the way in.
     watchReadingLevel();

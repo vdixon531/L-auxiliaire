@@ -89,6 +89,10 @@ const PAIRS = [
   ["--fla-warn", "--fla-warn-tint", "near-miss word (.dw.near), mic hint", 4.5],
   ["--fla-error", "--fla-error-tint", "missed word (.dw.miss), .error box", 4.5],
   ["--fla-error", "--fla-card", "delete hover, error text", 4.5],
+  // The master switch's paused line (.hint--warn) — plain settings surface,
+  // no tint behind it, in both the popup and the side panel.
+  ["--fla-warn", "--fla-card", "\"paused\" settings hint", 4.5],
+  ["--fla-warn", "--fla-bg", "\"paused\" settings hint on ground", 4.5],
   // Tutorial (lib/tour.css, welcome/welcome.css). The callout sits on
   // --fla-overlay, not --fla-card, so it reads as floating above the page.
   ["--fla-ink", "--fla-overlay", "tour callout body", 7],

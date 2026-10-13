@@ -1732,6 +1732,30 @@ body {
 }
 
 /* -----------------------------
+   Master switch (lib/settings-panel.js#syncDependentRows)
+   Governs every other setting below it, so it carries the serif and sits in
+   its own section rather than reading as one more toggle in the list.
+   ----------------------------- */
+
+#settings .row--master {
+  padding: 2px 0 var(--fla-xs);
+  font-family: var(--fla-serif);
+  font-size: 16px;
+  color: var(--fla-heading);
+}
+
+#settings .row--master input[type="checkbox"] {
+  width: 17px;
+  height: 17px;
+}
+
+/* The paused state. Terracotta ink, not a faded grey — a state worth saying
+   has to be readable (see CLAUDE.md on opacity and quiet text). */
+#settings .hint--warn {
+  color: var(--fla-warn);
+}
+
+/* -----------------------------
    Colophon (lib/settings-panel.js#wireAboutLinks)
    Quiet by design — it's an attribution and two reference links, not a control.
    ----------------------------- */

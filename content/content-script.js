@@ -17,6 +17,12 @@ const DEFER_TRANSLATE_SEGMENTS = 4;
 const MAX_CONTEXT_CHARS = 400;
 
 let hoverModeEnabled = false;
+// The master switch (config.extensionEnabled — see lib/extension-enabled.js).
+// Absent means ON, so the optimistic default here matches a fresh install; the
+// read below settles it, and `configReady` is what the click path waits on so
+// a page loaded with the switch off can't translate a word in the few
+// milliseconds before storage answers.
+let extensionEnabled = true;
 let currentBubble = null;
 let hoverTimer = null;
 let isMouseDown = false; // suppresses the hover-dwell popup while a drag-selection is in progress
@@ -450,6 +456,12 @@ document.addEventListener("mouseup", async (e) => {
   // Ignore clicks inside our own bubble
   if (currentBubble && currentBubble.contains(e.target)) return;
 
+  // Master switch. Awaited rather than read, because a mouseup can land
+  // before the first config read resolves — and the event object, the
+  // selection and e.clientX/Y all survive the await intact.
+  await configReady;
+  if (!extensionEnabled) return;
+
   const sel = getSelectionText();
   if (sel) {
     await showSelectionBubble(sel, getContextSentence(sel.range));
@@ -475,7 +487,7 @@ document.addEventListener("mouseup", async (e) => {
 // -----------------------------
 
 document.addEventListener("mousemove", (e) => {
-  if (!hoverModeEnabled) return;
+  if (!extensionEnabled || !hoverModeEnabled) return;
   clearTimeout(hoverTimer);
   // A drag-selection in progress fires mousemove continuously too — without
   // this guard, the dwell timer would keep popping up single-word bubbles
@@ -488,6 +500,7 @@ document.addEventListener("mousemove", (e) => {
   if (hasActiveSelection()) return;
 
   hoverTimer = setTimeout(async () => {
+    if (!extensionEnabled) return; // switched off during the dwell window
     if (isMouseDown) return; // drag may have started during the debounce window
     if (hasActiveSelection()) return; // selection may have been made during the debounce window
     if (isInteractiveTarget(e.target)) return;
@@ -652,12 +665,22 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       currentBubble.innerHTML = `<div class="fla-loading">Downloading language pack (one-time)…</div>`;
     }
   }
+  // Both of these act ON the page, so the master switch governs them the same
+  // way it governs a click — the shortcut should be as inert as the bubble.
   if (msg.type === "READ_SELECTION") {
+    if (!extensionEnabled) {
+      sendResponse({ ok: false, disabled: true });
+      return false;
+    }
     const sel = getSelectionText();
     if (sel) speak(sel.text, msg.lang || "fr");
     sendResponse({ ok: !!sel });
   }
   if (msg.type === "SAVE_SELECTION") {
+    if (!extensionEnabled) {
+      sendResponse({ ok: false, disabled: true });
+      return false;
+    }
     handleSaveSelectionShortcut();
     sendResponse({ ok: true });
   }
@@ -669,12 +692,35 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     // sendResponse wins, so a frame with nothing selected stays quiet rather
     // than racing an empty answer past the frame the user selected in. If no
     // frame has one, nobody replies and the caller's send simply rejects.
+    // Silence is already this handler's "nothing here" answer (see above), so
+    // a switched-off page simply doesn't answer — no new caller-side branch.
+    if (!extensionEnabled) return false;
     const text = getSelectionText()?.text;
     if (text) sendResponse({ text });
   }
 });
 
-// Load initial mode state
-chrome.storage.local.get("config").then(({ config = {} }) => {
+// Load initial mode state. The promise is kept: the click path awaits it (see
+// the mouseup handler) so the master switch is known before the first word
+// can be translated.
+const configReady = chrome.storage.local.get("config").then(({ config = {} }) => {
   hoverModeEnabled = !!config.hoverModeEnabled;
+  extensionEnabled = config.extensionEnabled !== false; // absent means on
+});
+
+// The master switch is live across every open tab, not just the active one —
+// the same chrome.storage.onChanged route config.colorCoding takes in
+// annotator.js, rather than the SET_HOVER_MODE-style "message the active tab"
+// pattern, which would leave every background tab still translating.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local" || !changes.config) return;
+  const next = changes.config.newValue?.extensionEnabled !== false;
+  if (next === extensionEnabled) return;
+  extensionEnabled = next;
+  if (!extensionEnabled) {
+    // Switched off with a bubble on screen: take it away now rather than
+    // leaving a translation floating over a page nothing will update again.
+    clearTimeout(hoverTimer);
+    removeBubble();
+  }
 });

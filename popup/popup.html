@@ -8,8 +8,19 @@
   <body>
     <h1>L'auxiliaire</h1>
 
+    <section class="master">
+      <label class="row row--master">
+        <span>Enable L'auxiliaire</span>
+        <!-- Checked, and the hint pre-filled, so the first paint shows the
+             default state (absent means on) rather than flashing "off" for the
+             millisecond before the config read lands. initSettingsPanel()
+             sets the real value. -->
+        <input type="checkbox" id="extensionToggle" checked />
+      </label>
+      <p id="extensionState" class="hint">On — click any word, or select a phrase, to translate it.</p>
+    </section>
+
     <section class="toggles">
-      <p class="hint">Click any word, or select a phrase, to translate it.</p>
       <label class="row">
         <span>Hover-to-translate</span>
         <input type="checkbox" id="hoverToggle" />
@@ -91,6 +102,10 @@
     <section class="shortcuts">
       <h2 class="section-title">Shortcuts</h2>
       <ul class="shortcut-list">
+        <li>
+          <span class="keys"><kbd>Alt</kbd><kbd>L</kbd></span>
+          <span>Turn L'auxiliaire on or off</span>
+        </li>
         <li>
           <span class="keys"><kbd>Alt</kbd><kbd>T</kbd></span>
           <span>Toggle hover-to-translate</span>

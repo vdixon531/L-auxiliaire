@@ -29,6 +29,12 @@ The single most useful thing anyone could do right now.
         guesses, not calibrated against anyone actually speaking.
   - [ ] Practice's two-consecutive-silent-lines auto-pause, and recovery from
         a mid-session mic revoke.
+  - [ ] The master switch (`config.extensionEnabled`). Worth checking in a
+        browser: `Alt+L` from a `chrome://` tab (no active tab to message),
+        a page already open when the switch is flipped either way, a page
+        *loaded* while it's off, the toolbar badge surviving a browser
+        restart, and that the workbook, PDF viewer and tutorial all still
+        work with it off.
 
 ## Phase 3 — spaced repetition
 

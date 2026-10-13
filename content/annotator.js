@@ -45,12 +45,18 @@ let scanInFlight = false;
 let observer = null;
 let mutationTimer = null;
 let cefrTimer = null;
+// The master switch (config.extensionEnabled — see lib/extension-enabled.js).
+// Absent means ON. While it's off this script wraps nothing, watches nothing
+// and renders nothing: a page the user is just working on gets left alone.
+let extensionEnabled = true;
+let started = false; // the initial scan + observer have been set up
 
 // -----------------------------
 // Config — live-reactive across ALL open tabs, not just the active one
 // -----------------------------
 
 function applyConfigToDocument(config = {}) {
+  extensionEnabled = config.extensionEnabled !== false; // absent means on
   const colorCoding = config.colorCoding || {};
   const colors = { ...DEFAULT_COLORS, ...colorCoding };
   const categoriesEnabled = { ...DEFAULT_CATEGORIES_ENABLED, ...(colorCoding.categoriesEnabled || {}) };
@@ -59,7 +65,10 @@ function applyConfigToDocument(config = {}) {
   root.style.setProperty("--fla-color-feminine", colors.feminine);
   root.style.setProperty("--fla-color-plural", colors.plural);
   root.style.setProperty("--fla-color-neutral", colors.neutral);
-  root.classList.toggle("fla-colorcoding-on", !!colorCoding.enabled);
+  // Words already wrapped by an earlier scan stay wrapped — the spans are
+  // inert without this class — so switching off is one class away from
+  // leaving the page visually untouched, with no DOM to unpick.
+  root.classList.toggle("fla-colorcoding-on", extensionEnabled && !!colorCoding.enabled);
   root.classList.toggle("fla-cat-masculine-on", categoriesEnabled.masculine);
   root.classList.toggle("fla-cat-feminine-on", categoriesEnabled.feminine);
   root.classList.toggle("fla-cat-plural-on", categoriesEnabled.plural);
@@ -74,11 +83,17 @@ function applyConfigToDocument(config = {}) {
   root.classList.toggle("fla-theme-light", config.themeMode === "light");
 }
 
-chrome.storage.local.get("config").then(({ config }) => applyConfigToDocument(config));
-
+// The first read is init()'s, below — it has to await the answer before
+// scanning anyway, and two reads would only race each other to the same
+// applyConfigToDocument() call.
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "local" || !changes.config) return;
   applyConfigToDocument(changes.config.newValue);
+  // Flipping the master switch back on mid-page has to start the work that
+  // init() skipped; flipping it off stops the observer, or every DOM change
+  // on a page we're meant to be leaving alone would still queue a scan.
+  if (extensionEnabled) start();
+  else stop();
 });
 
 // -----------------------------
@@ -119,6 +134,7 @@ function tokenize(text) {
 // -----------------------------
 
 async function scan(root) {
+  if (!extensionEnabled) return; // master switch — see applyConfigToDocument
   if (scanInFlight) return; // one scan at a time; the mutation debounce coalesces bursts anyway
   scanInFlight = true;
   try {
@@ -126,6 +142,10 @@ async function scan(root) {
     for (let i = 0; i < nodes.length; i += CHUNK_SIZE) {
       const chunk = nodes.slice(i, i + CHUNK_SIZE);
       await new Promise((resolve) => requestIdleCallback(() => resolve(), { timeout: 200 }));
+      // Re-checked per chunk, not just on entry: a scan of a long page spans
+      // many idle callbacks, and the switch can be flipped in the middle of
+      // one — the rest of the page shouldn't get wrapped after that.
+      if (!extensionEnabled) return;
       await processChunk(chunk);
     }
   } finally {
@@ -283,6 +303,13 @@ function startObserving() {
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type !== "GET_PAGE_LEVEL") return false;
+  // Switched off, nothing is being scanned, so there is no answer coming —
+  // say "none", not "pending". `pending` renders as "Analyzing…", which would
+  // sit there forever waiting on a scan that will never run.
+  if (!extensionEnabled) {
+    sendResponse({ level: null, pending: false });
+    return false;
+  }
   sendResponse({ level: cachedLevel, pending: cachedLevel === null && (scanInFlight || cefrSamples.length === 0) });
   return false; // synchronous response, no need to keep the channel open
 });
@@ -291,7 +318,30 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 // Init
 // -----------------------------
 
-(async function init() {
+// Starting is idempotent and can happen either at load or later, when the
+// master switch is turned back on from the popup while the page is open.
+async function start() {
+  if (started || !extensionEnabled) return;
+  started = true;
   await scan(document.body);
+  if (!extensionEnabled) return; // switched off again while the scan ran
   startObserving();
+}
+
+function stop() {
+  if (!started) return;
+  started = false;
+  observer?.disconnect();
+  observer = null;
+  clearTimeout(mutationTimer);
+  clearTimeout(cefrTimer);
+}
+
+(async function init() {
+  // Config is read here, before anything else happens, rather than at module
+  // top level: the answer has to be in hand before the first scan, or a page
+  // loaded with the master switch off would be walked and wrapped anyway.
+  const { config = {} } = await chrome.storage.local.get("config");
+  applyConfigToDocument(config);
+  await start();
 })();

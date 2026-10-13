@@ -54,6 +54,10 @@
   },
 
   "commands": {
+    "toggle-extension": {
+      "suggested_key": { "default": "Alt+L" },
+      "description": "Turn L'auxiliaire on or off"
+    },
     "toggle-hover-translate": {
       "suggested_key": { "default": "Alt+T" },
       "description": "Toggle hover-to-translate mode"
