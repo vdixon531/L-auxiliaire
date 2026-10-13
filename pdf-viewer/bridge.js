@@ -40,12 +40,19 @@ import { takeHandoff } from "../lib/pdf-handoff.js";
 // async, but whether it reaches the defaultUrl read before or after this module
 // executes depends on how many real async boundaries initialize() crosses —
 // which is a race, and one this file lost in practice.
-function suppressStockDefaultPdf() {
+function applyViewerOptions() {
   window.PDFViewerApplicationOptions?.set("defaultUrl", "");
+  // PDF.js ships with enableScripting:true, which runs JavaScript embedded in
+  // a PDF (AcroForm scripts) inside its bundled QuickJS sandbox. This
+  // extension is a reader, not a form filler, so that buys nothing and costs
+  // two things: an execution path for arbitrary code out of an untrusted
+  // document, and a genuinely arguable answer to the Chrome Web Store's
+  // "do you execute remote code?" question. Off, so both are simply no.
+  window.PDFViewerApplicationOptions?.set("enableScripting", false);
 }
 
-suppressStockDefaultPdf();
-document.addEventListener("webviewerloaded", suppressStockDefaultPdf);
+applyViewerOptions();
+document.addEventListener("webviewerloaded", applyViewerOptions);
 
 const pdfState = {
   pdfUrl: null, // "pdf:<sha256hex>" — the vocab/cards key for this document
